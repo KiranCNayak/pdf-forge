@@ -1,0 +1,24 @@
+# Build output
+web/dist/
+web/public/wasm/*.wasm
+web/public/wasm/wasm_exec.js
+engine/bin/
+
+# Dependencies
+node_modules/
+
+# Generated test fixtures — large binaries do not belong in git
+engine/testdata/generated/
+
+# Benchmark scratch
+benchmarks/tmp/
+
+# Env
+.env
+.env.local
+
+# OS / editor
+.DS_Store
+*.swp
+.idea/
+.vscode/
