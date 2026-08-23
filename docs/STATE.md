@@ -20,6 +20,7 @@ Phase 0 is complete. The engine runs end-to-end in a browser.
 | `engine/cmd/genfixtures` | Test PDF generator |
 | `web/src/engine/EngineClient.ts` | Worker lifecycle, RPC correlation, transferables, respawn policy |
 | `web/src/workers/engine.worker.ts` | Hosts the Wasm instance; main thread never touches it |
+| `web/src/workers/render.worker.ts`, `web/src/lib/render/` | Lane D: pdf.js render pipeline — `RenderClient` (worker lifecycle, matches `EngineClient`'s shape), page rasterization to JPEG/PNG via `OffscreenCanvas` (`getOptimalScale`/16,384px clamp, white-fill + `intent: 'print'` per `docs/tools/pdf-to-image.md`), and text extraction with line/paragraph/column reconstruction plus scanned/low-confidence detection (`docs/tools/extract-text.md`). Independent of the engine, per the boundary rule. Not yet imported by any tool UI — feeds pdf-to-image, pdf-to-zip, extract-text, organize-pages, all still to be built (Lane B). Adds `pdfjs-dist` to `web/package.json`, bundled locally (its own worker script pulled in via a Vite `?url` import, not a CDN) |
 | `web/src/tools/registry.ts` | Filesystem-discovered tools via `import.meta.glob` |
 | `web/src/lib/router.ts` | ~25-line hash router, no dependency |
 | `web/src/tools/Merge` | Reference tool: `meta.ts` + `tool.tsx` — **copy this shape** |
