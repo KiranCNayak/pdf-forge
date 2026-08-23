@@ -236,19 +236,37 @@ this at all; ihatepdf needs a full Ghostscript build for it.
 `conf.WriteObjectStream = true`, `conf.WriteXRefStream = true`. Deduplicates objects,
 drops unused ones, writes object/xref streams, Flate-recompresses.
 
-**Pass 2 — imaging** (`internal/imaging`, ours). pdfcpu gives us exactly the two calls we
-need, both in-memory:
+**Pass 2 — imaging** (`internal/ops/compress.go`, ours). It works one level below the
+`api` package, on a `model.Context`, for a reason recorded below:
 
 ```go
-// Enumerate: model.Image embeds io.Reader and carries the metadata we need
-images, err := api.ExtractImagesRaw(rs, nil, conf)
-// → []map[int]model.Image
-//   model.Image{ Reader, ObjNr, PageNr, Width, Height, Bpc, Cs, Comp,
-//                IsImgMask, HasImgMask, HasSMask, Size, Filter, DecodeParms }
+// Enumerate as metadata-only stubs. stub=true is load-bearing: the raw path
+// populates Reader and FileType and NOTHING else — no Width, no HasSMask.
+stubs, err := pdfcpu.ExtractPageImages(ctx, pageNr, true)
+//   model.Image{ ObjNr, PageNr, Name, Width, Height, Bpc, Cs, Comp,
+//                IsImgMask, HasImgMask, HasSMask, Thumb, Size, Filter }
 
-// Replace one XObject in place, preserving its object number
-err = api.UpdateImages(rs, newImageReader, w, objNr, pageNr, resourceID, conf)
+// Render one image to bytes (jpg for DCT, png for Flate/LZW/CCITT, jpx, jbig2)
+img, err := pdfcpu.ExtractImage(ctx, obj.ImageDict, false, name, objNr, false)
+
+// Swap the XObject, preserving its object number
+sd, w, h, err := model.CreateImageStreamDict(ctx.XRefTable, newImageReader)
+entry, _ := ctx.FindTableEntry(objNr, 0)
+entry.Object = *sd
 ```
+
+**Why not `api.UpdateImages`.** It is the obvious call and it does not work for us:
+pdfcpu v0.15.0 validates that the replacement has *identical pixel dimensions* and errors
+with `replacement dimensions 595x842, want 1240x1754`. That rules out downsampling, which
+is the entire point of the pass. The three lines above are what `UpdateImages` does
+internally minus that check, and dropping the check is safe because a PDF places an image
+by the content stream's CTM, not by its pixel count — fewer pixels in the same box is
+simply a lower-resolution image. Re-check this if pdfcpu is upgraded.
+
+**Two contexts, not one.** Extraction decodes into the stream dict in place, so a context
+used for planning has half-decoded streams in it and must not be written. Plan on a
+scratch context, throw it away, then apply the replacements to a pristine one. Only the
+encoded JPEGs live across the boundary, so the contexts never overlap in time.
 
 Per image:
 
@@ -262,7 +280,8 @@ Per image:
 3. **Resample.** `golang.org/x/image/draw` with `draw.CatmullRom` — the closest
    equivalent to Ghostscript's bicubic. Target dimensions from the DPI preset.
 4. **Re-encode.** `image/jpeg` at the preset's quality.
-5. **Reinsert** via `UpdateImages`, preserving `objNr`.
+5. **Reinsert** by replacing the xref entry with a new image stream dict, preserving
+   `objNr`. See the `UpdateImages` note above.
 
 **`/SMask` is the trap.** An image with `HasSMask == true` carries its alpha in a separate
 soft-mask XObject. Re-encoding the base image to JPEG (which has no alpha) while silently

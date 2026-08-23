@@ -2,6 +2,7 @@
 // correlation. Tools call this; they never touch the worker directly.
 
 import {
+  type CompressResult,
   EngineError,
   type ErrorCode,
   type OpName,
@@ -163,6 +164,24 @@ export class EngineClient {
 
   isEncrypted(file: ArrayBuffer) {
     return this.#call<boolean>('isEncrypted', {}, [file])
+  }
+
+  /**
+   * Shrink a PDF. Either pick a preset or give a target size; target mode
+   * binary-searches a quality ladder and may return `reachedTarget: false`.
+   *
+   * This is the highest-water-mark op we run — peak memory is set by the
+   * largest decoded image, not by the file size — so the caller should
+   * `terminate()` afterwards regardless of input size. docs/tools/compress.md.
+   */
+  async compress(
+    file: ArrayBuffer,
+    opts:
+      | { mode: 'preset'; preset: 'screen' | 'ebook' | 'printer' | 'prepress' }
+      | { mode: 'target'; targetBytes: number },
+    onProgress?: ProgressFn,
+  ) {
+    return this.#call<CompressResult>('compress', opts, [file], onProgress)
   }
 }
 
