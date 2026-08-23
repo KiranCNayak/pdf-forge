@@ -24,7 +24,7 @@ Phase 0 is complete. The engine runs end-to-end in a browser.
 | `web/src/lib/router.ts` | ~25-line hash router, no dependency |
 | `web/src/tools/Merge` | Reference tool: `meta.ts` + `tool.tsx` — **copy this shape** |
 | `web/src/dev/smoke.ts` | 10-check browser smoke test |
-| `signaling/` | **Does not exist yet.** Phase 3 |
+| `signaling/` | WebSocket signaling server (Go module, `cmd/signaling`): room create/join/relay for SDP+ICE via `internal/hub`, per-IP rate limiting via `internal/wsserver`, Crockford-base32 room codes via `internal/roomcode`. 27 Go tests pass, gofmt clean, vet clean. See `signaling/README.md` |
 
 24 Go tests pass. 10 browser checks pass. TypeScript is clean. Production build works.
 
