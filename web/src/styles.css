@@ -21,3 +21,20 @@ button:disabled { opacity:.4; cursor:not-allowed; }
 .controls button { padding:.15rem .45rem; }
 .actions { display:flex; gap:.5rem; margin:1rem 0; }
 .result { margin-top:1rem; padding:1rem; border:1px solid var(--line); border-radius:8px; }
+
+/* shell layout */
+.shell { max-width:60rem; margin:0 auto; padding:2rem 1.25rem 4rem; display:grid; grid-template-columns:12rem 1fr; grid-template-areas:"header header" "nav main"; gap:0 2.5rem; }
+.shell > header { grid-area:header; }
+.shell > nav { grid-area:nav; }
+.shell > main { grid-area:main; max-width:none; margin:0; padding:0; }
+@media (max-width:44rem) { .shell { grid-template-columns:1fr; grid-template-areas:"header" "nav" "main"; } }
+.brand { font-size:1.5rem; font-weight:700; letter-spacing:-.02em; color:inherit; text-decoration:none; display:inline-block; }
+nav h3 { font-size:.72rem; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); margin:1.25rem 0 .4rem; }
+nav ul { list-style:none; margin:0; padding:0; }
+nav li a { display:block; padding:.2rem 0; color:var(--fg); text-decoration:none; font-size:.92rem; opacity:.8; }
+nav li a:hover { opacity:1; text-decoration:underline; }
+nav li a[aria-current=page] { opacity:1; font-weight:600; }
+ul.cards { list-style:none; padding:0; display:grid; gap:.6rem; }
+ul.cards a { display:block; padding:.8rem 1rem; border:1px solid var(--line); border-radius:8px; text-decoration:none; color:inherit; }
+ul.cards a:hover { border-color:var(--fg); }
+ul.cards strong { display:block; margin-bottom:.15rem; }

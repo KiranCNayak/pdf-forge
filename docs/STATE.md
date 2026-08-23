@@ -14,12 +14,15 @@ Phase 0 is complete. The engine runs end-to-end in a browser.
 | --- | --- |
 | `engine/internal/ops` | 8 ops: merge, split, extractPages, rotate, encrypt, decrypt, pageCount, isEncrypted |
 | `engine/internal/bridge` | Error codes + `Classify`; `Promisify`, buffer copy, progress relay (js build tag) |
-| `engine/cmd/wasm` | All 8 ops registered on `globalThis.__pdfforge` |
+| `engine/internal/wasmapi` | Self-registering JS adapters; ops register from `init()` |
+| `engine/cmd/wasm` | 4 lines. Calls `wasmapi.Install()` — never needs editing again |
 | `engine/cmd/cli` | Same ops natively — `merge`, `split`, `extract`, `rotate`, `encrypt`, `decrypt`, `info` |
 | `engine/cmd/genfixtures` | Test PDF generator |
 | `web/src/engine/EngineClient.ts` | Worker lifecycle, RPC correlation, transferables, respawn policy |
 | `web/src/workers/engine.worker.ts` | Hosts the Wasm instance; main thread never touches it |
-| `web/src/tools/Merge` | Working reference tool — **copy this shape for new tools** |
+| `web/src/tools/registry.ts` | Filesystem-discovered tools via `import.meta.glob` |
+| `web/src/lib/router.ts` | ~25-line hash router, no dependency |
+| `web/src/tools/Merge` | Reference tool: `meta.ts` + `tool.tsx` — **copy this shape** |
 | `web/src/dev/smoke.ts` | 10-check browser smoke test |
 | `signaling/` | **Does not exist yet.** Phase 3 |
 
@@ -29,7 +32,7 @@ Phase 0 is complete. The engine runs end-to-end in a browser.
 
 | | |
 | --- | --- |
-| Wasm binary | 17.73 MB raw / 4.24 MB gzip / **3.00 MB Brotli** |
+| Wasm binary | 17.70 MB raw / 4.24 MB gzip / **3.00 MB Brotli** |
 | Cold boot + merge | ~199 ms |
 | Warm merge | ~12.4 ms |
 | External requests at runtime | zero |
@@ -103,18 +106,23 @@ Each of these cost real time during Phase 0. All are guarded now; the guards are
 
 ## Next task
 
-**Phase 1 UI.** The engine ops for Phase 1 all exist and are tested; what is missing is a
-tool page per operation plus routing.
+**Phase 1 UI**, plus whatever else runs alongside it. Routing exists; the engine ops for
+Phase 1 exist and are tested. What is missing is a tool page per operation.
 
-1. Add routing (no router installed yet — pick one, or hand-roll for ~6 routes).
-2. Build `split`, `extractPages`, `rotate`, `encrypt`, `decrypt` pages, each following
-   `web/src/tools/Merge/MergeTool.tsx`: staged input → device-tier budget check → engine
-   call with progress → typed error handling on `EngineError.code` → download.
-3. `organize-pages` needs pdf.js for thumbnails and is the first tool to touch the render
-   worker — treat it as its own piece of work, not a fifth copy of the merge page.
+Build `split`, `extractPages`, `rotate`, `encrypt`, `decrypt` as directories under
+`web/src/tools/`, each following `web/src/tools/Merge/`: a `meta.ts` and a `tool.tsx`,
+with staged input → device-tier budget check → engine call with progress → typed error
+handling on `EngineError.code` → download.
+
+`organize-pages` needs pdf.js thumbnails and is the first tool to touch the render
+worker — treat it as its own piece of work, not a fifth copy of the merge page.
 
 After that, Phase 2 opens with compress, which is where the engine choice earns out and
 where the design in `docs/LLD.md` §3 gets tested against reality.
+
+**This work parallelises.** `docs/PARALLEL.md` defines four non-overlapping lanes —
+engine ops, tool UIs, signaling server, render pipeline — and the worktree flow for
+running them at once.
 
 ---
 
@@ -123,6 +131,10 @@ where the design in `docs/LLD.md` §3 gets tested against reality.
 The repo is self-contained; no context from the originating conversation is required.
 Point the agent at `CLAUDE.md` (constraints and commands), then this file (state), then
 `docs/HLD.md` and `docs/LLD.md` (design), then the relevant `docs/tools/*.md`.
+
+For **several** agents at once, `docs/PARALLEL.md` assigns lanes and lists the few
+shared files that need coordination. Give each agent its own worktree
+(`./scripts/worktree.sh add <lane>`) and exactly one lane.
 
 The one thing not in the repo is the reverse-engineering of ihatepdf.cv that produced the
 tool catalog. Its conclusions are recorded in `docs/HLD.md` §3 and

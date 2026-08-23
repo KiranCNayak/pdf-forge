@@ -47,6 +47,7 @@ state.
 | [Benchmarking](docs/BENCHMARKING.md) | Phase 5 measurement design |
 | [Per-tool plans](docs/tools/) | Implementation detail for each V1 tool |
 | [STATE](docs/STATE.md) | What exists today, what is still a guess, what to do next |
+| [PARALLEL](docs/PARALLEL.md) | Working several lanes at once without conflicts |
 | [CLAUDE.md](CLAUDE.md) | Working agreements and hard constraints |
 
 ## Roadmap

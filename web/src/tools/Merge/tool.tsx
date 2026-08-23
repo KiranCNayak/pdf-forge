@@ -20,7 +20,7 @@ type Status =
   | { kind: 'done'; bytes: Uint8Array; pages: number }
   | { kind: 'error'; message: string; code: string }
 
-export function MergeTool() {
+export default function MergeTool() {
   const [staged, setStaged] = useState<Staged[]>([])
   const [status, setStatus] = useState<Status>({ kind: 'idle' })
   const caps = deviceCaps()
@@ -82,12 +82,7 @@ export function MergeTool() {
   const blocked = staged.length < 2 || staged.some((s) => s.error) || !budget.ok
 
   return (
-    <section>
-      <h2>Merge PDFs</h2>
-      <p className="muted">
-        Combine PDFs in any order. Everything runs on this device — nothing is uploaded.
-      </p>
-
+    <>
       <input type="file" accept="application/pdf" multiple onChange={(e) => addFiles(e.target.files)} />
 
       {staged.length > 0 && (
@@ -149,6 +144,6 @@ export function MergeTool() {
           <button onClick={() => downloadBytes(status.bytes, 'merged.pdf')}>Download</button>
         </div>
       )}
-    </section>
+    </>
   )
 }

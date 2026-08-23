@@ -76,6 +76,11 @@ is our only way to reclaim it. `docs/LLD.md` §2.1.
 contents, passwords and per-route analytics are not. Passwords live in memory for the
 duration of a call and are never persisted, logged, or placed in a URL.
 
+**Adding a tool or an operation must touch no shared file.** Ops self-register via
+`wasmapi.Register()` from `init()`; tools are discovered by `import.meta.glob` over
+`web/src/tools/*/meta.ts`. `cmd/wasm/main.go` and `App.tsx` name nothing and should never
+grow. This is what lets several agents work at once — see `docs/PARALLEL.md`.
+
 **localStorage holds metadata only.** File bytes go to IndexedDB (`idb-keyval`) or stay in
 RAM. Never bytes in localStorage.
 
