@@ -31,10 +31,17 @@ Full table in `docs/HLD.md` §4.
 | `signaling/` | Go WebSocket server for P2P share. SDP relay only |
 | `docs/` | HLD, LLD, tool catalog, per-tool plans. **Design decisions live here** |
 
+**`docs/STATE.md` says what currently exists and what the next task is. Read it before
+starting work** — the docs describe the design, STATE describes reality.
+
 ## Commands
 
 ```bash
-./scripts/build-wasm.sh          # engine → web/public/wasm/
+cd engine && go test ./...
+```
+
+```bash
+./scripts/build-wasm.sh
 ```
 
 ```bash
@@ -42,12 +49,11 @@ cd web && npm run dev
 ```
 
 ```bash
-cd engine && go test ./...
-```
-
-```bash
 cd engine && go run ./cmd/cli --help
 ```
+
+Rebuild the Wasm after any change under `engine/` — Vite serves it as a static asset and
+will not do it for you. Browser smoke test: `await __smoke()` in the dev console.
 
 ## Hard constraints
 
@@ -92,6 +98,13 @@ reasoning first:
   through a server and break the premise. `docs/tools/p2p-share.md`.
 - **Images with `/SMask` or `/Mask` are skipped** during compression in V1. Mishandling
   them produces visibly corrupt output.
+- **Passwords containing spaces are rejected.** pdfcpu will encrypt with them and then
+  never decrypt again — a data-loss bug we guard against. `docs/tools/encrypt.md`.
+- **`model.ConfigPath = "disable"`** in `internal/ops/config_js.go` is required, not
+  tidiness: without it pdfcpu tries to `mkdir /tmp` and dies on the first browser call.
+
+`docs/STATE.md` §"Things that will bite you" has the full list, each with the failure it
+prevents.
 
 ## Scope
 

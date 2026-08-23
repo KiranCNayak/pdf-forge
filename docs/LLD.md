@@ -358,16 +358,38 @@ cp "$(go env GOROOT)/lib/wasm/wasm_exec.js" web/public/wasm/
 
 Then content-hash both filenames for immutable caching.
 
-Measured for the probe build (merge + encrypt linked):
+Measured 2026-08-24 with 8 ops linked:
 
 | | Size |
 | --- | --- |
-| Raw | 6.3 MB |
-| gzip -9 | 1.79 MB |
-| brotli -q11 | **1.32 MB** |
+| Raw | 17.73 MB |
+| gzip -9 | 4.24 MB |
+| brotli -q11 | **3.00 MB** |
 
-Cloudflare Pages serves Brotli automatically. Expect modest growth as more ops link in —
-most of the 6.3 MB is the Go runtime plus pdfcpu's core, both already paid for.
+Cloudflare Pages serves Brotli automatically.
+
+**Measuring this correctly is easy to get wrong.** A probe that references ops as
+`_ = ops.Merge` does not defeat dead-code elimination — pdfcpu drops out entirely and you
+measure a bare Go runtime (~6 MB raw). Only a real call path linked from `main` gives a
+true figure. Our first attempt made exactly this mistake and under-reported by ~3×.
+
+Size bisection, for anyone trying to trim it later:
+
+| Configuration | Raw |
+| --- | --- |
+| Go runtime + `syscall/js` + bridge, no pdfcpu | 2.46 MB |
+| `+ encoding/json` | +0.54 MB |
+| `+ pdfcpu` (any single op with a real call path) | ~16.9 MB |
+| `+ 7 more ops` | 17.73 MB |
+
+The cliff is pdfcpu itself, and it is nearly all fixed cost — going from one op to eight
+added only 0.8 MB. **Adding operations is close to free; the first one is not.** That
+makes a per-tool module split pointless: the shared base dominates, so one engine binary
+lazily loaded and cached is the right shape.
+
+If the 3 MB ever needs to come down, the target is pdfcpu's `pkg/pdfcpu/sign` package,
+which pulls `crypto/x509` and OCSP for signature validation we do not use. Removing it
+needs an upstream build tag, so it is an upstream conversation rather than a local fix.
 
 Loading, in `engine.worker.ts`:
 

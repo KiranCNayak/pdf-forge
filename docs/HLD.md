@@ -41,19 +41,33 @@ The actual reasons:
    xref are object-graph operations where a compiled language with real structs beats
    JS object churn.
 
-### Measured feasibility (2026-08-23)
+### Measured feasibility (2026-08-24)
 
 | Metric | Result |
 | --- | --- |
 | pdfcpu v0.15.0 under `GOOS=js GOARCH=wasm` | Compiles clean, no patches, no shims |
-| Wasm binary (merge + encrypt ops linked) | 6.3 MB raw |
-| gzip -9 | 1.79 MB |
-| brotli -q11 | **1.32 MB** |
+| Wasm binary, 8 ops linked (merge, split, rotate, extract, encrypt, decrypt, pageCount, isEncrypted) | 17.73 MB raw |
+| gzip -9 | 4.24 MB |
+| brotli -q11 | **3.00 MB** |
 | Filesystem emulation (memfs) required? | **No** — see §4 |
 
-For scale: pdf.js alone is ~2 MB. The whole Go engine, Brotli'd, is *smaller than the
-JavaScript renderer we still have to ship*. The "Go Wasm binaries are too fat" objection
-does not survive contact with the actual numbers here.
+> An earlier probe reported 6.3 MB raw. That number was wrong: the probe referenced its
+> functions as `_ = fn`, which does not defeat the linker's dead-code elimination, so
+> pdfcpu was never actually linked. Anything measured this way needs a real call path.
+
+**The honest comparison.** ihatepdf's Ghostscript build — which it lazily loads on the
+compress route alone — is **14.0 MB raw / 10.4 MB Brotli**. Our engine is roughly **3.5×
+smaller than their single-purpose compressor**, while covering eight operations and the
+compress pipeline to come.
+
+Against their *other* tools we are heavier: pdf.js (308 KB Brotli across main + worker)
+and pdf-lib do the page ops in a fraction of the bytes. So the trade is real and worth
+stating plainly: **we pay more on the cheap tools and far less on the expensive one.**
+Since the engine is lazy-loaded on first tool use and cached immutably thereafter, the
+cost is paid once per version rather than per tool.
+
+The "Go Wasm binaries are too fat" objection survives in weakened form — 3 MB is not
+nothing — but it is not disqualifying next to what the incumbents actually ship.
 
 TinyGo is not an option — pdfcpu depends on `reflect`, `encoding/json` and
 `golang.org/x/text`. Standard toolchain + Brotli + immutable caching is the answer.
@@ -268,14 +282,43 @@ India-specific business tools — see `docs/TOOL_CATALOG.md` §Deferred for the 
 
 ---
 
-## 11. Open questions
+## 11. Phase 0 results (2026-08-24)
+
+The bridge spike is **done**. Eight operations run end-to-end in a browser worker.
+
+| Measurement | Result |
+| --- | --- |
+| Cold boot + merge (fetch, instantiate, register ops, merge 3+2 pages) | **~199 ms** |
+| Warm merge, same input | **~12.4 ms** |
+| Wasm binary | 17.73 MB raw / 3.00 MB Brotli |
+| Filesystem emulation needed | None |
+| External network requests during operation | **Zero** — verified in DevTools |
+
+Cold boot under 200 ms means the lazy-load-on-first-tool-use strategy works without a
+perceptible stall, and it makes worker respawn (§6) cheap enough to use freely rather
+than hoard.
+
+Three findings the spike produced that no amount of design could have:
+
+1. **pdfcpu crashes immediately under `GOOS=js`** — `NewDefaultConfiguration` tries to
+   create a config directory (`mkdir /tmp: not implemented on js`) before touching any
+   PDF. Fixed by `model.ConfigPath = "disable"` in an init guarded by the js build tag.
+   Invisible to every native test.
+2. **pdfcpu v0.15.0 can encrypt a file it cannot then decrypt.** Passwords containing a
+   space are accepted on encrypt and rejected forever on decrypt. We now refuse them up
+   front. Details in `docs/tools/encrypt.md`.
+3. **"Needs a password" and "wrong password" were indistinguishable** — pdfcpu emits the
+   same message for both, and only the caller knows which happened. They drive different
+   UI, so ops now disambiguate.
+
+## 12. Open questions
 
 1. **Real Go heap multiplier** for pdfcpu on large files — drives every device-tier
-   constant. Phase 0.
-2. **Font subsetting.** Ghostscript trims embedded fonts to used glyphs (up to 90% off a
+   constant. Still unmeasured: the spike used 2 KB fixtures. Needs a 100 MB+ document.
+2. **Worker respawn threshold** — the 64 MB placeholder in `EngineClient` is still a
+   guess, and depends on (1).
+3. **Font subsetting.** Ghostscript trims embedded fonts to used glyphs (up to 90% off a
    font); pdfcpu does not. Text-heavy PDFs will compress worse than ihatepdf until we
    build it. See `docs/tools/compress.md`.
-3. **Worker respawn threshold** — what file size justifies paying reinstantiation cost.
-   Phase 0.
 4. **Whether `PostProcessValidate` is affordable** in the browser, or whether validation
    cost outweighs its safety benefit on large documents.

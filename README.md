@@ -6,8 +6,9 @@ Every operation runs on your own machine — merge, split, compress, encrypt —
 account, no watermark and no server holding your documents. Works offline after the first
 load.
 
-> **Status: design phase.** This repository currently contains architecture and planning
-> documents only. No implementation yet.
+> **Status: Phase 0 complete.** The Go→WebAssembly engine runs end-to-end in a browser
+> with eight operations, a native CLI, and a browser smoke test. Tool UIs beyond Merge
+> are not built yet. See [docs/STATE.md](docs/STATE.md).
 
 ---
 
@@ -22,8 +23,14 @@ That buys three things:
   browser PDF tool — cannot compress and has no real encryption support. Ours does both.
 - **One engine, three targets.** The same `internal/ops` package serves the browser, a
   self-hostable CLI binary, and the benchmark harness.
-- **A smaller download than expected.** The whole Go engine is **1.32 MB Brotli'd** —
-  measured, not estimated. That is smaller than pdf.js, which we still ship for rendering.
+- **A reasonable download for what it covers.** The engine is **3.0 MB Brotli'd** with
+  eight operations linked — measured, not estimated. For comparison, the Ghostscript build
+  ihatepdf.cv loads for compression *alone* is 10.4 MB Brotli. Adding operations is nearly
+  free: going from one to eight cost 0.8 MB, because pdfcpu's fixed cost dominates.
+
+The trade is honest rather than one-sided: on simple page operations, `pdf-lib` does the
+job in a fraction of the bytes. We pay more on the cheap tools and far less on the
+expensive one, and the engine loads once per version rather than once per tool.
 
 It also means no CDN. Comparable tools load a dozen libraries from third-party CDNs at
 runtime, which leaks every visitor's IP and *which tool they opened*. We bundle
@@ -39,6 +46,7 @@ state.
 | [Tool catalog](docs/TOOL_CATALOG.md) | All 56 tools, phased — plus what's deferred and why |
 | [Benchmarking](docs/BENCHMARKING.md) | Phase 5 measurement design |
 | [Per-tool plans](docs/tools/) | Implementation detail for each V1 tool |
+| [STATE](docs/STATE.md) | What exists today, what is still a guess, what to do next |
 | [CLAUDE.md](CLAUDE.md) | Working agreements and hard constraints |
 
 ## Roadmap

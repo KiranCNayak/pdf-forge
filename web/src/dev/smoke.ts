@@ -1,0 +1,111 @@
+// Browser smoke test for the Go↔JS bridge.
+//
+// Native `go test` cannot reach this layer: buffer copying, promise resolution,
+// progress relay, worker lifecycle and the Wasm-only failure modes only exist in
+// a browser. The pdfcpu config-directory crash (ops/config_js.go) was invisible
+// to every native test and broke the very first call in the browser.
+//
+// Run `await __smoke()` in the dev console, or from an automated browser driver.
+// Dev-only — not included in production builds.
+
+import { engine } from '../engine/EngineClient'
+
+interface Result {
+  name: string
+  ok: boolean
+  detail?: string
+}
+
+const fixture = (n: string) => fetch(`/fixtures/${n}`).then((r) => r.arrayBuffer())
+
+export async function smoke(): Promise<string> {
+  const results: Result[] = []
+  const check = (name: string, ok: boolean, detail?: string) => results.push({ name, ok, detail })
+
+  const timings: Record<string, string> = {}
+
+  // Cold boot includes fetching and instantiating the Wasm module.
+  const t0 = performance.now()
+  const merged = await engine.merge([await fixture('sample-a.pdf'), await fixture('sample-b.pdf')], {})
+  timings.coldBootMerge = `${(performance.now() - t0).toFixed(0)}ms`
+  check('merge 3+2 pages', (await engine.pageCount(merged.slice().buffer)) === 5)
+
+  const t1 = performance.now()
+  await engine.merge([await fixture('sample-a.pdf'), await fixture('sample-b.pdf')], {})
+  timings.warmMerge = `${(performance.now() - t1).toFixed(1)}ms`
+
+  let progressEvents = 0
+  await engine.merge(
+    [await fixture('sample-a.pdf'), await fixture('sample-b.pdf')],
+    {},
+    () => progressEvents++,
+  )
+  check('progress crosses the bridge', progressEvents > 0, `${progressEvents} events`)
+
+  // Security round trip, plus the distinction the UI depends on: a missing
+  // password must not look like a wrong one.
+  const enc = await engine.encrypt(await fixture('sample-a.pdf'), {
+    userPW: 'hunter2',
+    ownerPW: 'hunter2',
+  })
+
+  let missingCode = ''
+  try {
+    await engine.pageCount(enc.slice().buffer)
+  } catch (e) {
+    missingCode = (e as { code: string }).code
+  }
+  check('no password → ERR_ENCRYPTED', missingCode === 'ERR_ENCRYPTED', missingCode)
+
+  let wrongCode = ''
+  try {
+    await engine.decrypt(enc.slice().buffer, { password: 'nope' })
+  } catch (e) {
+    wrongCode = (e as { code: string }).code
+  }
+  check('wrong password → ERR_BAD_PASSWORD', wrongCode === 'ERR_BAD_PASSWORD', wrongCode)
+
+  const dec = await engine.decrypt(enc.slice().buffer, { password: 'hunter2' })
+  check('encrypt/decrypt round trip', (await engine.pageCount(dec.slice().buffer)) === 3)
+
+  // Multi-buffer return path.
+  const parts = await engine.split(await fixture('sample-a.pdf'), { mode: 'each' })
+  check(
+    'split returns real byte arrays',
+    parts.length === 3 && parts[0].bytes instanceof Uint8Array,
+    `${parts.length} parts`,
+  )
+
+  const ex = await engine.extractPages(await fixture('sample-a.pdf'), { selection: '1,3' })
+  check('extract 1,3 → 2 pages', (await engine.pageCount(ex.slice().buffer)) === 2)
+
+  const rot = await engine.rotate(await fixture('sample-a.pdf'), { rotation: 90 })
+  check('rotate 90', rot.byteLength > 0)
+
+  let badRotate = ''
+  try {
+    await engine.rotate(await fixture('sample-a.pdf'), { rotation: 45 })
+  } catch (e) {
+    badRotate = (e as { code: string }).code
+  }
+  check('rotate 45 rejected', badRotate === 'ERR_INVALID_PARAMS', badRotate)
+
+  // Every error the UI can show needs displayable copy attached.
+  let userMessage = ''
+  try {
+    await engine.decrypt(enc.slice().buffer, { password: 'nope' })
+  } catch (e) {
+    userMessage = (e as { userMessage: string }).userMessage
+  }
+  check('userMessage present', !!userMessage, userMessage)
+
+  const failed = results.filter((r) => !r.ok)
+  const lines = [
+    ...results.map((r) => `${r.ok ? 'PASS' : 'FAIL'}  ${r.name}${r.detail ? `  (${r.detail})` : ''}`),
+    '',
+    ...Object.entries(timings).map(([k, v]) => `${k}: ${v}`),
+    '',
+    failed.length === 0 ? `all ${results.length} checks passed` : `${failed.length} FAILED`,
+  ]
+  return lines.join('\n')
+}

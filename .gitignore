@@ -22,3 +22,7 @@ benchmarks/tmp/
 *.swp
 .idea/
 .vscode/
+
+# Vite
+web/node_modules/
+web/dist/

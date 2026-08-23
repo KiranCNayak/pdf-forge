@@ -83,8 +83,41 @@ Peak ≈ input copy + object model + output.
 | Input already encrypted | `ERR_ENCRYPTED` — decrypt first. Offer to chain via remove-password |
 | Both passwords empty | Block. Nothing to do |
 | User and owner passwords identical | pdfcpu permits it; warn that permissions become meaningless |
-| Non-ASCII / very long password | PDF 2.0 uses SASLprep. pdfcpu pulls in `golang.org/x/text/secure/precis` for this — needs a fixture with unicode passwords |
+| Password contains a space or tab | **Rejected up front.** See the pdfcpu bug below |
+| Accented / CJK password | Works. Verified round-trip for `café`, `日本語パス`, `p@ssw0rd!` |
 | User forgets the password | **Unrecoverable. Say this before encrypting, not after.** There is no reset, no server-side copy, no recovery |
+
+## pdfcpu bug: passwords that encrypt but never decrypt
+
+**Found during the Phase 0 spike. This one destroys user data silently.**
+
+pdfcpu v0.15.0 prepares PDF 2.0 passwords in `crypto.go processInput` with:
+
+```go
+p := precis.NewIdentifier(precis.BidiRule, precis.Norm(norm.NFKC))
+```
+
+The comment says SASLprep. SASLprep is the **FreeformClass** (`precis.OpaqueString`),
+which permits spaces. `NewIdentifier` builds an **IdentifierClass** profile, which does
+not.
+
+The failure is asymmetric and therefore vicious: encrypting with `"my password"`
+**succeeds**, and every later attempt to decrypt it fails with
+`precis: disallowed rune encountered`. The user is holding a file that nothing —
+not our tool, not pdfcpu's CLI — will ever open again, and nothing warned them.
+
+Our guard runs pdfcpu's own profile at *encrypt* time, while the user can still choose
+differently:
+
+```go
+var pdfcpuPasswordProfile = precis.NewIdentifier(precis.BidiRule, precis.Norm(norm.NFKC))
+```
+
+Covered by `TestEncryptRejectsPasswordsPdfcpuCannotDecrypt`. Keep it in lockstep with
+pdfcpu — if a future version switches to `OpaqueString`, relax the guard and invert the
+test rather than deleting it.
+
+Worth reporting upstream.
 
 ## Security notes
 
