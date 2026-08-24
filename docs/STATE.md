@@ -23,6 +23,7 @@ Phase 0 is complete. The engine runs end-to-end in a browser.
 | `web/src/tools/registry.ts` | Filesystem-discovered tools via `import.meta.glob` |
 | `web/src/lib/router.ts` | ~25-line hash router, no dependency |
 | `web/src/tools/Merge` | Reference tool: `meta.ts` + `tool.tsx` — **copy this shape** |
+| `web/src/tools/{Split,ExtractPages,Rotate,Encrypt,RemovePassword}` | Lane B: five Phase 1 tool pages built on `EngineClient`, same staged-input → budget → call → error-switch → download shape. `Rotate`/`ExtractPages` skip the thumbnail picker (needs Lane D's render worker); `Split` offers per-part downloads instead of a ZIP (no zip dependency added — flag before adding one, per `docs/PARALLEL.md`) |
 | `web/src/dev/smoke.ts` | 10-check browser smoke test |
 | `signaling/` | **Does not exist yet.** Phase 3 |
 
