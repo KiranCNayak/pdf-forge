@@ -16,6 +16,7 @@ AES-256, a "no recovery" acknowledgment checkbox gating submission once an open 
 is set.
 
 **Deferred:**
+
 - 128-bit / 40-bit key length — `EncryptParams.KeyLength` supports it, but the UI locks
   to 256 per this doc's own "advanced-only" call.
 - Password strength meter.
@@ -65,7 +66,7 @@ worse. Default the picker to 256 and treat anything lower as an advanced option.
 
 Worth stating in the UI, because most tools get this wrong and users are confused by it:
 
-- **User password** — required to *open* the document. Real protection.
+- **User password** — required to _open_ the document. Real protection.
 - **Owner password** — governs permissions. Any reader can choose to ignore permission
   flags entirely; many do. An owner password with no user password is **advisory, not
   security**.
@@ -76,11 +77,11 @@ restrictions." Do not let a privacy-first product imply protection it isn't prov
 
 ## Params
 
-| Field | Notes |
-| --- | --- |
-| `userPW` | Empty means no open password |
-| `ownerPW` | Empty means pdfcpu uses the user password |
-| `keyLength` | 256 default. 128/40 advanced-only |
+| Field         | Notes                                            |
+| ------------- | ------------------------------------------------ |
+| `userPW`      | Empty means no open password                     |
+| `ownerPW`     | Empty means pdfcpu uses the user password        |
+| `keyLength`   | 256 default. 128/40 advanced-only                |
 | `permissions` | See ISO-32000 Table 22 / `model.PermissionFlags` |
 
 ## Memory
@@ -90,14 +91,14 @@ Peak ≈ input copy + object model + output.
 
 ## Edge cases
 
-| Case | Behaviour |
-| --- | --- |
-| Input already encrypted | `ERR_ENCRYPTED` — decrypt first. Offer to chain via remove-password |
-| Both passwords empty | Block. Nothing to do |
-| User and owner passwords identical | pdfcpu permits it; warn that permissions become meaningless |
-| Password contains a space or tab | **Rejected up front.** See the pdfcpu bug below |
-| Accented / CJK password | Works. Verified round-trip for `café`, `日本語パス`, `p@ssw0rd!` |
-| User forgets the password | **Unrecoverable. Say this before encrypting, not after.** There is no reset, no server-side copy, no recovery |
+| Case                               | Behaviour                                                                                                     |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| Input already encrypted            | `ERR_ENCRYPTED` — decrypt first. Offer to chain via remove-password                                           |
+| Both passwords empty               | Block. Nothing to do                                                                                          |
+| User and owner passwords identical | pdfcpu permits it; warn that permissions become meaningless                                                   |
+| Password contains a space or tab   | **Rejected up front.** See the pdfcpu bug below                                                               |
+| Accented / CJK password            | Works. Verified round-trip for `café`, `日本語パス`, `p@ssw0rd!`                                              |
+| User forgets the password          | **Unrecoverable. Say this before encrypting, not after.** There is no reset, no server-side copy, no recovery |
 
 ## pdfcpu bug: passwords that encrypt but never decrypt
 
@@ -118,7 +119,7 @@ The failure is asymmetric and therefore vicious: encrypting with `"my password"`
 `precis: disallowed rune encountered`. The user is holding a file that nothing —
 not our tool, not pdfcpu's CLI — will ever open again, and nothing warned them.
 
-Our guard runs pdfcpu's own profile at *encrypt* time, while the user can still choose
+Our guard runs pdfcpu's own profile at _encrypt_ time, while the user can still choose
 differently:
 
 ```go

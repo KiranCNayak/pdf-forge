@@ -62,14 +62,14 @@ Cheap — same profile as encrypt.
 
 ## Edge cases
 
-| Case | Behaviour |
-| --- | --- |
-| Wrong password | `ERR_BAD_PASSWORD`. **Keep the file staged** and re-prompt; making them re-pick the file for a typo is hostile |
-| Input not encrypted | Not an error. Say "this file isn't password protected" and offer the original back |
+| Case                                     | Behaviour                                                                                                                       |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| Wrong password                           | `ERR_BAD_PASSWORD`. **Keep the file staged** and re-prompt; making them re-pick the file for a typo is hostile                  |
+| Input not encrypted                      | Not an error. Say "this file isn't password protected" and offer the original back                                              |
 | Owner password only, empty user password | Opens without a password but has restrictions. Decrypting still removes the restrictions — this is the legitimate main use case |
-| RC4-encrypted legacy file | pdfcpu supports RC4 40/128 for *reading*. Decrypt works; output is unencrypted |
-| Certificate-based encryption | `ERR_UNSUPPORTED`. pdfcpu's `PrivateKeyPW` path exists but is out of V1 scope |
-| Corrupt + encrypted | `ERR_CORRUPT` takes precedence; repair isn't available until Phase 4 |
+| RC4-encrypted legacy file                | pdfcpu supports RC4 40/128 for _reading_. Decrypt works; output is unencrypted                                                  |
+| Certificate-based encryption             | `ERR_UNSUPPORTED`. pdfcpu's `PrivateKeyPW` path exists but is out of V1 scope                                                   |
+| Corrupt + encrypted                      | `ERR_CORRUPT` takes precedence; repair isn't available until Phase 4                                                            |
 
 ## Rate limiting / abuse
 

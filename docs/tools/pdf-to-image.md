@@ -20,26 +20,30 @@ Runs in `render.worker.ts` with pdf.js. Ported near-verbatim from ihatepdf, beca
 version is correct and hard-won:
 
 ```ts
-const dpiToScale = (dpi: number) => dpi / 72   // 72 DPI is the browser's base
+const dpiToScale = (dpi: number) => dpi / 72; // 72 DPI is the browser's base
 
 function getOptimalScale(viewport, requested: number) {
-  const MAX = 16384                             // hard browser canvas limit
-  const w = viewport.width * requested
-  const h = viewport.height * requested
+  const MAX = 16384; // hard browser canvas limit
+  const w = viewport.width * requested;
+  const h = viewport.height * requested;
   if (w > MAX || h > MAX) {
-    return Math.min(MAX / viewport.width, MAX / viewport.height) * 0.95
+    return Math.min(MAX / viewport.width, MAX / viewport.height) * 0.95;
   }
-  return requested
+  return requested;
 }
 ```
 
 Render settings that matter:
 
 ```ts
-const ctx = canvas.getContext('2d', { alpha: false, willReadFrequently: false })
-ctx.fillStyle = 'white'; ctx.fillRect(0, 0, canvas.width, canvas.height)
-ctx.imageSmoothingQuality = 'high'
-await page.render({ canvasContext: ctx, viewport, intent: 'print' }).promise
+const ctx = canvas.getContext("2d", {
+  alpha: false,
+  willReadFrequently: false,
+});
+ctx.fillStyle = "white";
+ctx.fillRect(0, 0, canvas.width, canvas.height);
+ctx.imageSmoothingQuality = "high";
+await page.render({ canvasContext: ctx, viewport, intent: "print" }).promise;
 ```
 
 `alpha: false` plus an explicit white fill — a transparent canvas exported to JPEG comes
@@ -53,7 +57,7 @@ failure:
 
 - **Quadratic scaling.** Memory grows with scale², so 600 DPI costs 4× what 300 does.
   The estimator must square the scale.
-- **Canvas costs RAM *and* VRAM.** A 4000×6000 canvas is ~96 MB RAM plus ~96 MB GPU
+- **Canvas costs RAM _and_ VRAM.** A 4000×6000 canvas is ~96 MB RAM plus ~96 MB GPU
   texture. On shared-memory mobile that's 192 MB gone per page.
 - **Release explicitly.** `canvas.width = canvas.height = 0` after each page. Nulling the
   reference is not enough — this is what actually frees the GPU texture.
@@ -77,21 +81,21 @@ desktop 600 / 50.
 
 ## Edge cases
 
-| Case | Behaviour |
-| --- | --- |
+| Case                                    | Behaviour                                                |
+| --------------------------------------- | -------------------------------------------------------- |
 | Page exceeds 16,384 px at requested DPI | Clamp to the safe scale, tell the user the effective DPI |
-| 500-page document at 600 DPI | Estimator refuses or downgrades before starting |
-| Encrypted input | Prompt for password (pdf.js accepts one) |
-| Transparent page content | White background fill handles it for JPEG |
-| Vector-only page | Renders fine; note that raster output loses scalability |
-| Single page selected | Download the image directly, don't zip |
+| 500-page document at 600 DPI            | Estimator refuses or downgrades before starting          |
+| Encrypted input                         | Prompt for password (pdf.js accepts one)                 |
+| Transparent page content                | White background fill handles it for JPEG                |
+| Vector-only page                        | Renders fine; note that raster output loses scalability  |
+| Single page selected                    | Download the image directly, don't zip                   |
 
 ## UI states
 
 Idle → loaded (page count, DPI/format pickers, live size estimate) → converting (per-page
 progress, batch indicator) → done (thumbnail results, download all/individual) → error.
 
-Show the estimated output size *before* starting. It's the cheapest way to stop someone
+Show the estimated output size _before_ starting. It's the cheapest way to stop someone
 requesting 600 DPI on 300 pages.
 
 ## Fixtures

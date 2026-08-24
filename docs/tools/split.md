@@ -5,7 +5,7 @@
 ## Purpose
 
 Divide one PDF into several. Distinct from [extract-pages](extract-pages.md): split means
-*cut this document up*, extract means *give me these pages as one file*.
+_cut this document up_, extract means _give me these pages as one file_.
 
 ## Status
 
@@ -13,6 +13,7 @@ Divide one PDF into several. Distinct from [extract-pages](extract-pages.md): sp
 modes; per-part downloads plus a "download all" button.
 
 **Deferred:**
+
 - "At page numbers" mode (cut before pages 5, 12, 30) — not implemented; only
   each/span/ranges exist today.
 - ZIP download — parts download individually (staggered) instead. No zip dependency has
@@ -42,7 +43,7 @@ type SplitParams struct {
 func Split(input []byte, p SplitParams) ([][]byte, []string, error) // parts, names, err
 ```
 
-**Do not use `api.Split` / `api.SplitByPageNr`** — both require an output *directory*,
+**Do not use `api.Split` / `api.SplitByPageNr`** — both require an output _directory_,
 which would drag a filesystem shim into the build for no benefit. Instead:
 
 ```go
@@ -68,15 +69,15 @@ the buffers come back, so the ZIP itself never occupies the Go heap.
 
 ## Edge cases
 
-| Case | Behaviour |
-| --- | --- |
-| Range beyond page count | Reject at input validation, showing the actual count |
-| Empty / malformed range string | Inline validation error, never `ERR_INTERNAL` |
-| Ranges overlap | Allowed — a page may appear in several outputs |
-| Result is one part | Still valid; return it directly rather than zipping |
-| 500-page "every page" split | 500 buffers. Batch the transfer back and stream into the ZIP; do not hold all in memory at once |
-| Encrypted input | `ERR_ENCRYPTED`, prompt for password |
-| Bookmarks/outlines | Split parts lose the global outline. Note it in the UI |
+| Case                           | Behaviour                                                                                       |
+| ------------------------------ | ----------------------------------------------------------------------------------------------- |
+| Range beyond page count        | Reject at input validation, showing the actual count                                            |
+| Empty / malformed range string | Inline validation error, never `ERR_INTERNAL`                                                   |
+| Ranges overlap                 | Allowed — a page may appear in several outputs                                                  |
+| Result is one part             | Still valid; return it directly rather than zipping                                             |
+| 500-page "every page" split    | 500 buffers. Batch the transfer back and stream into the ZIP; do not hold all in memory at once |
+| Encrypted input                | `ERR_ENCRYPTED`, prompt for password                                                            |
+| Bookmarks/outlines             | Split parts lose the global outline. Note it in the UI                                          |
 
 ## UI states
 

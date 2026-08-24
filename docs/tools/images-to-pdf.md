@@ -60,7 +60,7 @@ Worth doing in Phase 4; detect and give a clear message in V1.
 
 ## Memory
 
-Scales with the *decoded* size of the images, not their file size. A 12 MP JPEG is 3 MB on
+Scales with the _decoded_ size of the images, not their file size. A 12 MP JPEG is 3 MB on
 disk and 36 MB decoded.
 
 - Guard total decoded size against the device tier before starting.
@@ -71,16 +71,16 @@ disk and 36 MB decoded.
 
 ## Edge cases
 
-| Case | Behaviour |
-| --- | --- |
-| Mixed orientations | `orientation: "auto"` picks per image. Default to it |
-| Very large image (>50 MP) | Guard before decode; `ERR_TOO_LARGE` |
-| Animated GIF / WebP | Use the first frame; say so |
-| HEIC input | V1: clear "not supported, convert to JPEG first". Phase 4: browser-side transcode |
-| CMYK JPEG | pdfcpu handles it; verify colours against a fixture — CMYK round-trips are a classic source of wrong colours |
-| Zero images | Disable the button |
-| Image with EXIF rotation | **Check this explicitly.** If pdfcpu ignores EXIF orientation, phone photos land sideways — a very visible bug with a very quiet cause |
-| Transparent PNG | Becomes an SMask; warn about file size |
+| Case                      | Behaviour                                                                                                                              |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| Mixed orientations        | `orientation: "auto"` picks per image. Default to it                                                                                   |
+| Very large image (>50 MP) | Guard before decode; `ERR_TOO_LARGE`                                                                                                   |
+| Animated GIF / WebP       | Use the first frame; say so                                                                                                            |
+| HEIC input                | V1: clear "not supported, convert to JPEG first". Phase 4: browser-side transcode                                                      |
+| CMYK JPEG                 | pdfcpu handles it; verify colours against a fixture — CMYK round-trips are a classic source of wrong colours                           |
+| Zero images               | Disable the button                                                                                                                     |
+| Image with EXIF rotation  | **Check this explicitly.** If pdfcpu ignores EXIF orientation, phone photos land sideways — a very visible bug with a very quiet cause |
+| Transparent PNG           | Becomes an SMask; warn about file size                                                                                                 |
 
 ## UI states
 

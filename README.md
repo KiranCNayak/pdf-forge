@@ -27,7 +27,7 @@ That buys three things:
   self-hostable CLI binary, and the benchmark harness.
 - **A reasonable download for what it covers.** The engine is **3.0 MB Brotli'd** with
   eight operations linked — measured, not estimated. For comparison, the Ghostscript build
-  ihatepdf.cv loads for compression *alone* is 10.4 MB Brotli. Adding operations is nearly
+  ihatepdf.cv loads for compression _alone_ is 10.4 MB Brotli. Adding operations is nearly
   free: going from one to eight cost 0.8 MB, because pdfcpu's fixed cost dominates.
 
 The trade is honest rather than one-sided: on simple page operations, `pdf-lib` does the
@@ -35,7 +35,7 @@ job in a fraction of the bytes. We pay more on the cheap tools and far less on t
 expensive one, and the engine loads once per version rather than once per tool.
 
 It also means no CDN. Comparable tools load a dozen libraries from third-party CDNs at
-runtime, which leaks every visitor's IP and *which tool they opened*. We bundle
+runtime, which leaks every visitor's IP and _which tool they opened_. We bundle
 everything, so "works offline" is a structural guarantee rather than a hope about cache
 state.
 
@@ -74,7 +74,7 @@ One-time setup — install the pre-push hook (below) so a broken push can't happ
 Open the printed `http://localhost:5173` URL. In the browser console, run:
 
 ```js
-await __smoke()
+await __smoke();
 ```
 
 That's the 12-check bridge smoke test (`web/src/dev/smoke.ts`) — it exercises merge,
@@ -102,34 +102,39 @@ cd engine && go test ./... && gofmt -l . && go vet ./...
 cd signaling && go test ./... && gofmt -l . && go vet ./...
 ./scripts/build-wasm.sh
 cd web && npx tsc --noEmit && npm run build
+npm install && npx prettier --check "**/*.md"
 ```
+
+The last line needs a one-time `npm install` at the repo root — it's separate from
+`web/`'s dependencies, since Markdown docs span the whole repo, not just `web/`. Fix
+formatting with `npm run format:md`.
 
 Emergency bypass: `SKIP_HOOKS=1 git push`. Not a habit — nothing else catches a broken
 push until CI exists.
 
 ## Documentation
 
-| Doc | Contents |
-| --- | --- |
-| [HLD](docs/HLD.md) | System architecture, engine boundary, memory model, deployment, roadmap |
-| [LLD](docs/LLD.md) | Go↔JS bridge contract, worker protocol, compress pipeline, build pipeline |
-| [Tool catalog](docs/TOOL_CATALOG.md) | All 56 tools, phased — plus what's deferred and why |
-| [Benchmarking](docs/BENCHMARKING.md) | Phase 5 measurement design |
-| [Per-tool plans](docs/tools/) | Implementation detail for each V1 tool |
-| [STATE](docs/STATE.md) | What exists today, what is still a guess, what to do next |
-| [PARALLEL](docs/PARALLEL.md) | Working several lanes at once without conflicts |
-| [CLAUDE.md](CLAUDE.md) | Working agreements and hard constraints |
+| Doc                                  | Contents                                                                  |
+| ------------------------------------ | ------------------------------------------------------------------------- |
+| [HLD](docs/HLD.md)                   | System architecture, engine boundary, memory model, deployment, roadmap   |
+| [LLD](docs/LLD.md)                   | Go↔JS bridge contract, worker protocol, compress pipeline, build pipeline |
+| [Tool catalog](docs/TOOL_CATALOG.md) | All 56 tools, phased — plus what's deferred and why                       |
+| [Benchmarking](docs/BENCHMARKING.md) | Phase 5 measurement design                                                |
+| [Per-tool plans](docs/tools/)        | Implementation detail for each V1 tool                                    |
+| [STATE](docs/STATE.md)               | What exists today, what is still a guess, what to do next                 |
+| [PARALLEL](docs/PARALLEL.md)         | Working several lanes at once without conflicts                           |
+| [CLAUDE.md](CLAUDE.md)               | Working agreements and hard constraints                                   |
 
 ## Roadmap
 
-| Phase | Contents |
-| --- | --- |
-| 0 | Bridge spike — proves the Go→Wasm path and replaces estimated constants with measurements |
-| 1 | Merge, split, extract pages, rotate, organize · encrypt, remove password |
-| 2 | Compress · PDF→JPG, images→PDF, extract text, PDF→ZIP |
-| 3 | P2P file share + Go signaling server |
-| 4 | Office format conversion (~15 tools) |
-| 5 | Benchmark harness |
+| Phase | Contents                                                                                  |
+| ----- | ----------------------------------------------------------------------------------------- |
+| 0     | Bridge spike — proves the Go→Wasm path and replaces estimated constants with measurements |
+| 1     | Merge, split, extract pages, rotate, organize · encrypt, remove password                  |
+| 2     | Compress · PDF→JPG, images→PDF, extract text, PDF→ZIP                                     |
+| 3     | P2P file share + Go signaling server                                                      |
+| 4     | Office format conversion (~15 tools)                                                      |
+| 5     | Benchmark harness                                                                         |
 
 V1 is Phases 1–2: twelve tools. The full in-scope target is 43.
 

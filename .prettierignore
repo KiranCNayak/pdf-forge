@@ -1,0 +1,8 @@
+# Dependencies / build output — not source
+node_modules/
+web/node_modules/
+web/dist/
+engine/testdata/generated/
+
+# Local Claude Code skill packages — not app content, not ours to reformat
+.claude/skills/

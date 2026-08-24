@@ -1,0 +1,12 @@
+{
+  "name": "pdf-forge-docs-tooling",
+  "private": true,
+  "description": "Root-level dev tooling only (Markdown formatting). The app lives in web/ and engine/, each with its own toolchain — this is not a workspace root for either.",
+  "scripts": {
+    "format:md": "prettier --write \"**/*.md\"",
+    "format:md:check": "prettier --check \"**/*.md\""
+  },
+  "devDependencies": {
+    "prettier": "^3.4.2"
+  }
+}

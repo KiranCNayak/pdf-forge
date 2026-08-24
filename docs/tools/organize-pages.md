@@ -46,7 +46,7 @@ api.Collect(bytes.NewReader(input), &collected, sel, conf)
 ```
 
 **Index carefully.** `PageOp.Source` refers to the original document; rotations must be
-applied using the *post-Collect* positions. Off-by-one here rotates the wrong page and is
+applied using the _post-Collect_ positions. Off-by-one here rotates the wrong page and is
 easy to miss because the output is still a valid PDF.
 
 `api.RemovePages` exists, but expressing everything through `Collect` gives one code path
@@ -63,14 +63,14 @@ Two budgets running concurrently:
 
 ## Edge cases
 
-| Case | Behaviour |
-| --- | --- |
-| Every page deleted | Block Apply. A 0-page PDF is invalid |
-| No changes staged | Disable Apply |
-| Duplicated page | Supported — the same source appears twice in the selection |
-| Very large document | Virtualise thumbnails; render on demand, not upfront |
-| Bookmarks | Outlines pointing at deleted/reordered pages break. Warn if the document has an outline |
-| Encrypted input | `ERR_ENCRYPTED` |
+| Case                  | Behaviour                                                                                                                    |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| Every page deleted    | Block Apply. A 0-page PDF is invalid                                                                                         |
+| No changes staged     | Disable Apply                                                                                                                |
+| Duplicated page       | Supported — the same source appears twice in the selection                                                                   |
+| Very large document   | Virtualise thumbnails; render on demand, not upfront                                                                         |
+| Bookmarks             | Outlines pointing at deleted/reordered pages break. Warn if the document has an outline                                      |
+| Encrypted input       | `ERR_ENCRYPTED`                                                                                                              |
 | User reloads mid-edit | Staged edits live in memory only. Either persist to IndexedDB or warn on unload — don't silently lose 20 minutes of dragging |
 
 ## UI states

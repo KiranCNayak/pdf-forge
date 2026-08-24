@@ -16,6 +16,7 @@ from PDF" and "split PDF" are distinct searches with distinct expectations.
 (`1-3, 5, 8-12`), extract → download.
 
 **Deferred:**
+
 - Click-to-select page thumbnails — needs the render worker, same as Rotate. Selection
   is text-only for now.
 
@@ -49,8 +50,8 @@ err = api.Collect(bytes.NewReader(input), &out, pages, conf)
 
 ## Params
 
-| Field | Type | Notes |
-| --- | --- | --- |
+| Field       | Type   | Notes                                                                                     |
+| ----------- | ------ | ----------------------------------------------------------------------------------------- |
 | `selection` | string | Validated by `api.ParsePageSelection`. Supports `even`, `odd`, `!` exclusion, open ranges |
 
 ## Memory
@@ -63,14 +64,14 @@ worker** (pdf.js), not the engine — two independent memory budgets, per `docs/
 
 ## Edge cases
 
-| Case | Behaviour |
-| --- | --- |
+| Case                             | Behaviour                                                                  |
+| -------------------------------- | -------------------------------------------------------------------------- |
 | Selection resolves to zero pages | `ERR_UNSUPPORTED` with a plain message; a 0-page PDF is not a valid output |
-| Selection is every page | Allowed; returns a copy. Mention it rather than erroring |
-| Duplicate page in selection | Allowed — `1,1,2` gives three pages |
-| Out-of-range page | Validation error before the op runs |
-| Encrypted input | `ERR_ENCRYPTED` |
-| Links pointing to omitted pages | Become dangling. pdfcpu's behaviour here needs a fixture check |
+| Selection is every page          | Allowed; returns a copy. Mention it rather than erroring                   |
+| Duplicate page in selection      | Allowed — `1,1,2` gives three pages                                        |
+| Out-of-range page                | Validation error before the op runs                                        |
+| Encrypted input                  | `ERR_ENCRYPTED`                                                            |
+| Links pointing to omitted pages  | Become dangling. pdfcpu's behaviour here needs a fixture check             |
 
 ## UI states
 

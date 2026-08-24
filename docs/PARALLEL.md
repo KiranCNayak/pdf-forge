@@ -19,10 +19,10 @@ easiest to resolve wrongly.
 
 So both were replaced with self-registration:
 
-| Instead of | We use |
-| --- | --- |
+| Instead of                     | We use                                                  |
+| ------------------------------ | ------------------------------------------------------- |
 | A switch in `cmd/wasm/main.go` | `wasmapi.Register()` from `init()` in the op's own file |
-| A tool list in `App.tsx` | `import.meta.glob` over `tools/*/meta.ts` |
+| A tool list in `App.tsx`       | `import.meta.glob` over `tools/*/meta.ts`               |
 
 `cmd/wasm/main.go` is now four lines and should never change again. `App.tsx` renders
 navigation from the registry and never names a tool.
@@ -92,13 +92,13 @@ tools.
 These are the only files that more than one lane needs. There aren't many, and that's
 the point.
 
-| File | Who touches it | How to avoid a conflict |
-| --- | --- | --- |
-| `web/src/engine/EngineClient.ts` | Lane A, per new op | Append methods **at the end** of the ops section, never reorder |
-| `web/src/engine/protocol.ts` | Lane A, per new op | Append to the `OpName` union, one name per line |
-| `engine/go.mod`, `web/package.json` | Anyone adding a dependency | Announce first — see below |
-| `docs/STATE.md` | Everyone, at the end of a task | Edit only your own row/bullet; never restructure |
-| `web/src/styles.css` | Lane B, Lane D | Append a clearly-commented block; don't edit others' rules |
+| File                                | Who touches it                 | How to avoid a conflict                                         |
+| ----------------------------------- | ------------------------------ | --------------------------------------------------------------- |
+| `web/src/engine/EngineClient.ts`    | Lane A, per new op             | Append methods **at the end** of the ops section, never reorder |
+| `web/src/engine/protocol.ts`        | Lane A, per new op             | Append to the `OpName` union, one name per line                 |
+| `engine/go.mod`, `web/package.json` | Anyone adding a dependency     | Announce first — see below                                      |
+| `docs/STATE.md`                     | Everyone, at the end of a task | Edit only your own row/bullet; never restructure                |
+| `web/src/styles.css`                | Lane B, Lane D                 | Append a clearly-commented block; don't edit others' rules      |
 
 **Dependencies need a heads-up before they're added.** Two agents adding different
 routers, or different date libraries, produces a mess that is tedious to unpick and
@@ -160,6 +160,13 @@ cd engine && go test ./... && gofmt -l . && go vet ./...
 ./scripts/build-wasm.sh && cd web && npx tsc --noEmit && npm run build
 ```
 
+```bash
+npm install && npx prettier --check "**/*.md"
+```
+
+The last one checks Markdown formatting across the whole repo (root-level tooling, not
+`web/`'s) — fix with `npm run format:md`.
+
 Then `npm run dev` and `await __smoke()` — all checks must pass. The smoke test covers
 the bridge, which is the part most likely to break from a merge and least likely to be
 caught by anything else.
@@ -171,12 +178,12 @@ caught by anything else.
 Phase 1 engine ops all exist and are tested; the UIs do not. A reasonable four-way split
 from here:
 
-| Lane | Task |
-| --- | --- |
-| A | Compress — `docs/tools/compress.md`. The hardest and most valuable work |
-| B | Tool pages for split, extractPages, rotate, encrypt, decrypt |
-| C | Signaling server — `docs/tools/p2p-share.md` §2 |
-| D | Render worker + PDF→JPG — `docs/tools/pdf-to-image.md` |
+| Lane | Task                                                                    |
+| ---- | ----------------------------------------------------------------------- |
+| A    | Compress — `docs/tools/compress.md`. The hardest and most valuable work |
+| B    | Tool pages for split, extractPages, rotate, encrypt, decrypt            |
+| C    | Signaling server — `docs/tools/p2p-share.md` §2                         |
+| D    | Render worker + PDF→JPG — `docs/tools/pdf-to-image.md`                  |
 
 These four touch essentially disjoint files. B is several tools and could be split
 further if the directories are assigned explicitly up front.

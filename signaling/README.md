@@ -27,7 +27,7 @@ tool.** Concretely here:
   relayed to the other peer without ever being parsed, logged, or inspected.
   The server cannot tell an SDP offer from an ICE candidate from a
   transferred filename embedded in one — it doesn't try to.
-- Logs contain event names and room *counts*, never room codes, IPs, or
+- Logs contain event names and room _counts_, never room codes, IPs, or
   payloads. Client IPs are held in memory only, for the rate limiter, and
   are never written to a log or persisted anywhere.
 - No database, no disk writes, no file at all beyond the binary itself.

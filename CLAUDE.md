@@ -15,7 +15,7 @@ a self-hostable binary and a free benchmark baseline.
 > **JS owns rasterization, text-layout extraction, file I/O and UI.**
 > **Pixels never round-trip through Go.**
 
-Both sides *look* capable of the other's job, which is why this is stated first. Merge,
+Both sides _look_ capable of the other's job, which is why this is stated first. Merge,
 split, rotate, organize, encrypt, decrypt, compress and images→PDF go to Go. PDF→image,
 text extraction, thumbnails and previews stay in JS on pdf.js — Go has no PDF rasterizer,
 and pdf.js reconstructs text layout far better than pdfcpu does.
@@ -24,12 +24,12 @@ Full table in `docs/HLD.md` §4.
 
 ## Layout
 
-| Path | What |
-| --- | --- |
-| `engine/` | Go module → Wasm (`cmd/wasm`) + native CLI (`cmd/cli`). Ops in `internal/ops` |
-| `web/` | Vite + React + TypeScript SPA. One lazy route per tool |
-| `signaling/` | Go WebSocket server for P2P share. SDP relay only |
-| `docs/` | HLD, LLD, tool catalog, per-tool plans. **Design decisions live here** |
+| Path         | What                                                                          |
+| ------------ | ----------------------------------------------------------------------------- |
+| `engine/`    | Go module → Wasm (`cmd/wasm`) + native CLI (`cmd/cli`). Ops in `internal/ops` |
+| `web/`       | Vite + React + TypeScript SPA. One lazy route per tool                        |
+| `signaling/` | Go WebSocket server for P2P share. SDP relay only                             |
+| `docs/`      | HLD, LLD, tool catalog, per-tool plans. **Design decisions live here**        |
 
 **`docs/STATE.md` says what currently exists and what the next task is. Read it before
 starting work** — the docs describe the design, STATE describes reality.
@@ -59,7 +59,7 @@ will not do it for you. Browser smoke test: `await __smoke()` in the dev console
 
 **Never load anything from a CDN at runtime.** Bundle it. ihatepdf.cv pulls 14 libraries
 from jsdelivr/cdnjs/unpkg, which tells three third parties every visitor's IP, User-Agent
-and *which tool they opened* — the last being the most sensitive signal on a site with
+and _which tool they opened_ — the last being the most sensitive signal on a site with
 routes like `/redact` and `/remove-password`. It also makes their offline claim contingent
 on cache state. Ours is structural. Do not erode it for convenience.
 
@@ -90,7 +90,7 @@ Design decisions belong in `docs/`, not in commit messages or code comments. If 
 diverges from what a doc says, fix the doc in the same change — a stale HLD is worse than
 no HLD.
 
-Figures in the docs marked *(estimate)* have not been measured. Replace them with real
+Figures in the docs marked _(estimate)_ have not been measured. Replace them with real
 numbers rather than quietly inheriting them; several device-tier constants are placeholders
 until the Phase 0 spike runs.
 

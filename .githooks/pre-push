@@ -44,5 +44,8 @@ step "engine: build wasm"
 step "web: typecheck + build"
 (cd web && npx tsc --noEmit && npm run build)
 
+step "docs: markdown format check"
+npx --no-install prettier --check "**/*.md"
+
 echo
 echo "pre-push: all checks passed"

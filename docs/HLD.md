@@ -2,7 +2,7 @@
 
 > Status: design, pre-implementation. Measured figures in this document come from a
 > feasibility probe run 2026-08-23 (pdfcpu v0.15.0, Go 1.25). Figures marked
-> *(estimate)* are not yet measured.
+> _(estimate)_ are not yet measured.
 
 ---
 
@@ -21,10 +21,10 @@ native CLI, which gives us a self-hostable binary and a free performance baselin
 Two claims are commonly made about Wasm that are **not** the reason we chose it, and we
 should be precise so the design doesn't inherit muddled thinking:
 
-- *"Wasm makes it decentralised / more secure."* It does not. The privacy property comes
+- _"Wasm makes it decentralised / more secure."_ It does not. The privacy property comes
   from **processing client-side**. A pure-JavaScript tool that never uploads is exactly
-  as private. Wasm is an implementation detail of *how* the client-side work gets done.
-- *"Wasm is inherently faster."* Only sometimes. Wasm wins on tight numeric/binary work;
+  as private. Wasm is an implementation detail of _how_ the client-side work gets done.
+- _"Wasm is inherently faster."_ Only sometimes. Wasm wins on tight numeric/binary work;
   it loses on anything that crosses the JS boundary frequently.
 
 The actual reasons:
@@ -43,13 +43,13 @@ The actual reasons:
 
 ### Measured feasibility (2026-08-24)
 
-| Metric | Result |
-| --- | --- |
-| pdfcpu v0.15.0 under `GOOS=js GOARCH=wasm` | Compiles clean, no patches, no shims |
-| Wasm binary, 8 ops linked (merge, split, rotate, extract, encrypt, decrypt, pageCount, isEncrypted) | 17.73 MB raw |
-| gzip -9 | 4.24 MB |
-| brotli -q11 | **3.00 MB** |
-| Filesystem emulation (memfs) required? | **No** — see §4 |
+| Metric                                                                                              | Result                               |
+| --------------------------------------------------------------------------------------------------- | ------------------------------------ |
+| pdfcpu v0.15.0 under `GOOS=js GOARCH=wasm`                                                          | Compiles clean, no patches, no shims |
+| Wasm binary, 8 ops linked (merge, split, rotate, extract, encrypt, decrypt, pageCount, isEncrypted) | 17.73 MB raw                         |
+| gzip -9                                                                                             | 4.24 MB                              |
+| brotli -q11                                                                                         | **3.00 MB**                          |
+| Filesystem emulation (memfs) required?                                                              | **No** — see §4                      |
 
 > An earlier probe reported 6.3 MB raw. That number was wrong: the probe referenced its
 > functions as `_ = fn`, which does not defeat the linker's dead-code elimination, so
@@ -60,7 +60,7 @@ compress route alone — is **14.0 MB raw / 10.4 MB Brotli**. Our engine is roug
 smaller than their single-purpose compressor**, while covering eight operations and the
 compress pipeline to come.
 
-Against their *other* tools we are heavier: pdf.js (308 KB Brotli across main + worker)
+Against their _other_ tools we are heavier: pdf.js (308 KB Brotli across main + worker)
 and pdf-lib do the page ops in a fraction of the bytes. So the trade is real and worth
 stating plainly: **we pay more on the cheap tools and far less on the expensive one.**
 Since the engine is lazy-loaded on first tool use and cached immutably thereafter, the
@@ -102,7 +102,7 @@ Wasm to build these PDF tools" is true for exactly one tool out of 56.
 
 **One thing they got wrong, which we fix:** loading 14 libraries from
 jsdelivr/cdnjs/unpkg at runtime tells three third parties every visitor's IP, User-Agent,
-*and which tool they opened* — the last being the most sensitive signal on the site
+_and which tool they opened_ — the last being the most sensitive signal on the site
 ("redact", "remove-password", "privacy-scanner"). It also makes the offline guarantee
 contingent on service-worker cache state. **We bundle everything and load nothing at
 runtime.** See the hard constraint in `CLAUDE.md`.
@@ -119,21 +119,21 @@ runtime.** See the hard constraint in `CLAUDE.md`.
 > **Pixels never round-trip through Go.**
 
 This is the single most important rule in the codebase. Violating it is the most
-expensive mistake available, because both sides *look* capable of the other's job.
+expensive mistake available, because both sides _look_ capable of the other's job.
 
-| Work | Owner | Why |
-| --- | --- | --- |
-| Merge, split, rotate, reorder, delete, extract pages | **Go** | Page-tree surgery; pdfcpu does it without re-rendering |
-| Encrypt, decrypt, permissions | **Go** | pdfcpu has native AES-256 (R6) |
-| Compress | **Go** | Needs stream-level image replacement — impossible in pdf-lib |
-| Images → PDF | **Go** | `api.ImportImages` takes `[]io.Reader` directly |
-| PDF → JPG/PNG, thumbnails, previews | **JS (pdf.js)** | Go has no PDF rasterizer. Writing one is out of the question |
-| Extract text | **JS (pdf.js)** | pdf.js's text-layer reconstruction is far better than pdfcpu's |
-| PDF → ZIP | **JS** | Rasterize (JS) then zip (JS); Go adds nothing |
-| File pick, download, storage, routing | **JS** | Browser APIs |
+| Work                                                 | Owner           | Why                                                            |
+| ---------------------------------------------------- | --------------- | -------------------------------------------------------------- |
+| Merge, split, rotate, reorder, delete, extract pages | **Go**          | Page-tree surgery; pdfcpu does it without re-rendering         |
+| Encrypt, decrypt, permissions                        | **Go**          | pdfcpu has native AES-256 (R6)                                 |
+| Compress                                             | **Go**          | Needs stream-level image replacement — impossible in pdf-lib   |
+| Images → PDF                                         | **Go**          | `api.ImportImages` takes `[]io.Reader` directly                |
+| PDF → JPG/PNG, thumbnails, previews                  | **JS (pdf.js)** | Go has no PDF rasterizer. Writing one is out of the question   |
+| Extract text                                         | **JS (pdf.js)** | pdf.js's text-layer reconstruction is far better than pdfcpu's |
+| PDF → ZIP                                            | **JS**          | Rasterize (JS) then zip (JS); Go adds nothing                  |
+| File pick, download, storage, routing                | **JS**          | Browser APIs                                                   |
 
 **Why no memfs.** Earlier public pdfcpu-in-Wasm experiments shim Node's `fs` because they
-drive pdfcpu's *CLI*. We drive the *library*, and pdfcpu exposes
+drive pdfcpu's _CLI_. We drive the _library_, and pdfcpu exposes
 `io.ReadSeeker → io.Writer` forms of everything we need (`MergeRaw`, `Rotate`, `Trim`,
 `Collect`, `Optimize`, `Encrypt`, `Decrypt`, `ImportImages`, `ExtractImagesRaw`,
 `UpdateImages`, `ExtractPage`). Nothing touches a filesystem. This removes an entire
@@ -196,13 +196,13 @@ Mitigations, in order of importance:
 
 1. **Terminate and respawn the engine worker after any job above a size watermark.** A
    fresh `WebAssembly.instantiateStreaming` from the service-worker cache costs roughly
-   100 ms *(estimate — measure in Phase 0)*, which is trivial compared with permanently
+   100 ms _(estimate — measure in Phase 0)_, which is trivial compared with permanently
    leaking hundreds of megabytes.
 2. **Keep the engine worker separate from the render workers.** Rasterization already has
    its own well-understood memory profile; don't entangle the two.
 3. **Estimate before starting, and refuse or downgrade.** Port ihatepdf's device tiers and
    quadratic estimator, but **recalibrate the constants for Go** — pdfcpu builds a full
-   in-memory object model, so expect roughly 2.5–3× file size *(estimate)* rather than
+   in-memory object model, so expect roughly 2.5–3× file size _(estimate)_ rather than
    their JS-tuned figures. Treat the shipped constants as placeholders until Phase 0
    measures the real multiplier.
 4. **Preserve ihatepdf's canvas discipline verbatim on the JS side.** It is correct and
@@ -210,11 +210,11 @@ Mitigations, in order of importance:
 
 Device tiers (starting values, inherited from ihatepdf, to be recalibrated):
 
-| Tier | Max file | Max DPI | Pages/batch |
-| --- | --- | --- | --- |
-| Phone (`width < 768`) | 50 MB | 300 | 10 |
-| Low-memory (`deviceMemory < 4`) | 100 MB | 450 | 30 |
-| Desktop | 150 MB | 600 | 50 |
+| Tier                            | Max file | Max DPI | Pages/batch |
+| ------------------------------- | -------- | ------- | ----------- |
+| Phone (`width < 768`)           | 50 MB    | 300     | 10          |
+| Low-memory (`deviceMemory < 4`) | 100 MB   | 450     | 30          |
+| Desktop                         | 150 MB   | 600     | 50          |
 
 Note `navigator.deviceMemory` is unavailable in Safari — default to 4 GB and lean on the
 mobile-width check.
@@ -225,11 +225,11 @@ mobile-width check.
 
 Three tiers, same as ihatepdf, because their reasoning is sound:
 
-| Tier | Holds | Lifetime | Notes |
-| --- | --- | --- | --- |
-| RAM | Active buffers, Go heap | Tab | Volatile, zero persistence |
-| IndexedDB | Large file bytes for resume | Session, manual clear | Binary-native, gigabyte capacity. Use `idb-keyval`, don't hand-roll |
-| localStorage | Filenames, sizes, timestamps | Until cleared | **Metadata only. Never file content.** 5–10 MB cap and string storage make it unfit for bytes |
+| Tier         | Holds                        | Lifetime              | Notes                                                                                         |
+| ------------ | ---------------------------- | --------------------- | --------------------------------------------------------------------------------------------- |
+| RAM          | Active buffers, Go heap      | Tab                   | Volatile, zero persistence                                                                    |
+| IndexedDB    | Large file bytes for resume  | Session, manual clear | Binary-native, gigabyte capacity. Use `idb-keyval`, don't hand-roll                           |
+| localStorage | Filenames, sizes, timestamps | Until cleared         | **Metadata only. Never file content.** 5–10 MB cap and string storage make it unfit for bytes |
 
 All origin-isolated. Clearing browser data destroys everything with no recovery — that is
 the honest trade for having no server, and the UI should say so rather than imply undo
@@ -252,10 +252,10 @@ The Wasm module is lazy-loaded on first tool use, never on the landing page.
 
 ## 9. Deployment
 
-| Component | Target | Rationale |
-| --- | --- | --- |
-| Static SPA | **Cloudflare Pages** | Unlimited free bandwidth, Brotli by default, immutable asset caching. Bandwidth is the dominant cost when every cold visitor pulls a multi-MB engine; Vercel's 100 GB/month free tier is roughly 33k cold visits |
-| Signaling server | **Fly.io**, 256 MB machine | Keeps the backend in Go. The workload — hold ~2 KB of SDP for ~10 s per transfer — is trivial for one small machine |
+| Component        | Target                     | Rationale                                                                                                                                                                                                        |
+| ---------------- | -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Static SPA       | **Cloudflare Pages**       | Unlimited free bandwidth, Brotli by default, immutable asset caching. Bandwidth is the dominant cost when every cold visitor pulls a multi-MB engine; Vercel's 100 GB/month free tier is roughly 33k cold visits |
+| Signaling server | **Fly.io**, 256 MB machine | Keeps the backend in Go. The workload — hold ~2 KB of SDP for ~10 s per transfer — is trivial for one small machine                                                                                              |
 
 If scaled to zero, Fly cold-starts in 1–3 s on first room creation. Either keep one
 machine warm (~$2/mo) or accept it.
@@ -268,14 +268,14 @@ becomes inconvenient.
 
 ## 10. Roadmap
 
-| Phase | Contents |
-| --- | --- |
+| Phase | Contents                                                                                                                                                                                                   |
+| ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **0** | Bridge spike: Go module + pdfcpu, `merge` over `syscall/js`, worker harness. Measures real Wasm size, throughput vs pdf-lib, and the Go heap multiplier — replacing this document's estimates with numbers |
-| **1** | Core page ops (merge, split, rotate, organize, extract pages) + security (encrypt, remove password) |
-| **2** | Compress (Go) + render/convert (PDF→JPG, images→PDF, extract text, PDF→ZIP) |
-| **3** | P2P share + Go signaling server |
-| **4** | Office format conversion (~15 tools) |
-| **5** | Benchmark harness (`docs/BENCHMARKING.md`) |
+| **1** | Core page ops (merge, split, rotate, organize, extract pages) + security (encrypt, remove password)                                                                                                        |
+| **2** | Compress (Go) + render/convert (PDF→JPG, images→PDF, extract text, PDF→ZIP)                                                                                                                                |
+| **3** | P2P share + Go signaling server                                                                                                                                                                            |
+| **4** | Office format conversion (~15 tools)                                                                                                                                                                       |
+| **5** | Benchmark harness (`docs/BENCHMARKING.md`)                                                                                                                                                                 |
 
 Phases 1–2 constitute V1. Out of scope entirely: AI tools, local-ML tools (OCR/TTS), and
 India-specific business tools — see `docs/TOOL_CATALOG.md` §Deferred for the reasoning.
@@ -286,13 +286,13 @@ India-specific business tools — see `docs/TOOL_CATALOG.md` §Deferred for the 
 
 The bridge spike is **done**. Eight operations run end-to-end in a browser worker.
 
-| Measurement | Result |
-| --- | --- |
-| Cold boot + merge (fetch, instantiate, register ops, merge 3+2 pages) | **~199 ms** |
-| Warm merge, same input | **~12.4 ms** |
-| Wasm binary | 17.73 MB raw / 3.00 MB Brotli |
-| Filesystem emulation needed | None |
-| External network requests during operation | **Zero** — verified in DevTools |
+| Measurement                                                           | Result                          |
+| --------------------------------------------------------------------- | ------------------------------- |
+| Cold boot + merge (fetch, instantiate, register ops, merge 3+2 pages) | **~199 ms**                     |
+| Warm merge, same input                                                | **~12.4 ms**                    |
+| Wasm binary                                                           | 17.73 MB raw / 3.00 MB Brotli   |
+| Filesystem emulation needed                                           | None                            |
+| External network requests during operation                            | **Zero** — verified in DevTools |
 
 Cold boot under 200 ms means the lazy-load-on-first-tool-use strategy works without a
 perceptible stall, and it makes worker respawn (§6) cheap enough to use freely rather

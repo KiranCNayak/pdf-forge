@@ -7,7 +7,7 @@ cheap later. Nothing here is required for V1.
 
 ## Why this is nearly free
 
-`engine/cmd/wasm` and `engine/cmd/cli` link the *same* `internal/ops` package. That gives
+`engine/cmd/wasm` and `engine/cmd/cli` link the _same_ `internal/ops` package. That gives
 a native baseline at zero additional cost, and it means the interesting number —
 **Wasm overhead vs native Go** — falls out of running one binary two ways.
 
@@ -31,12 +31,12 @@ how much font subsetting is worth before we spend weeks on it.
 
 ## Matrix
 
-| | merge | split | rotate | compress | encrypt |
-| --- | --- | --- | --- | --- | --- |
-| Go native (CLI) | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Go → Wasm (browser) | ✓ | ✓ | ✓ | ✓ | ✓ |
-| pdf-lib (JS) | ✓ | ✓ | ✓ | ✗ *(can't)* | ✗ *(can't)* |
-| Ghostscript-Wasm | ✗ | ✗ | ✗ | ✓ | ✗ |
+|                     | merge | split | rotate | compress    | encrypt     |
+| ------------------- | ----- | ----- | ------ | ----------- | ----------- |
+| Go native (CLI)     | ✓     | ✓     | ✓      | ✓           | ✓           |
+| Go → Wasm (browser) | ✓     | ✓     | ✓      | ✓           | ✓           |
+| pdf-lib (JS)        | ✓     | ✓     | ✓      | ✗ _(can't)_ | ✗ _(can't)_ |
+| Ghostscript-Wasm    | ✗     | ✗     | ✗      | ✓           | ✗           |
 
 The gaps in the pdf-lib row are themselves a result. "The library everyone else builds on
 cannot do two of these five operations" is the argument for the engine choice, stated as
@@ -46,12 +46,12 @@ data rather than assertion.
 
 Speed alone is a misleading headline. Record all four:
 
-| Metric | How | Why |
-| --- | --- | --- |
-| Wall time | `performance.now()` around the op, median of 5 runs after 1 warm-up | The obvious one |
-| Peak memory | `performance.measureUserAgentSpecificMemory()` where available; Go native via `runtime.MemStats` | Determines device tiers; often the real constraint |
-| Output size | bytes | **Essential for compress.** 3× faster and 40% worse is not a win |
-| Fidelity | visual diff vs source render, SSIM per page | Catches a "fast" compressor that destroys the document |
+| Metric      | How                                                                                              | Why                                                              |
+| ----------- | ------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------- |
+| Wall time   | `performance.now()` around the op, median of 5 runs after 1 warm-up                              | The obvious one                                                  |
+| Peak memory | `performance.measureUserAgentSpecificMemory()` where available; Go native via `runtime.MemStats` | Determines device tiers; often the real constraint               |
+| Output size | bytes                                                                                            | **Essential for compress.** 3× faster and 40% worse is not a win |
+| Fidelity    | visual diff vs source render, SSIM per page                                                      | Catches a "fast" compressor that destroys the document           |
 
 Report speed and output size together, always. A benchmark table showing only time for a
 compression tool is a marketing artifact, not a measurement.
@@ -60,14 +60,14 @@ compression tool is a marketing artifact, not a measurement.
 
 Reuses the per-tool fixtures, organised by shape:
 
-| Fixture | Shape | Probes |
-| --- | --- | --- |
-| `text_only.pdf` | 50 pp, embedded fonts, no images | The font-subsetting gap |
-| `images_heavy.pdf` | 30 pp, large photos | Our imaging pipeline's strength |
-| `scanned_300dpi.pdf` | 100 pp, one image per page | The common real-world case |
-| `forms.pdf` | AcroForm fields | Structural handling |
-| `large_120mb.pdf` | Generated | Memory ceilings, worker respawn |
-| `pages_500.pdf` | Generated | Per-page scaling |
+| Fixture              | Shape                            | Probes                          |
+| -------------------- | -------------------------------- | ------------------------------- |
+| `text_only.pdf`      | 50 pp, embedded fonts, no images | The font-subsetting gap         |
+| `images_heavy.pdf`   | 30 pp, large photos              | Our imaging pipeline's strength |
+| `scanned_300dpi.pdf` | 100 pp, one image per page       | The common real-world case      |
+| `forms.pdf`          | AcroForm fields                  | Structural handling             |
+| `large_120mb.pdf`    | Generated                        | Memory ceilings, worker respawn |
+| `pages_500.pdf`      | Generated                        | Per-page scaling                |
 
 Generated fixtures are produced by a script and **not committed** — a repo carrying a
 120 MB binary is its own problem.

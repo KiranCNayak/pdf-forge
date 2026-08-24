@@ -9,14 +9,14 @@
 
 Every tool hardcodes its output filename:
 
-| Tool | Current filename |
-| --- | --- |
-| Merge | `merged.pdf` |
-| Rotate | `rotated.pdf` |
-| Encrypt | `encrypted.pdf` |
-| Extract Pages | `extracted.pdf` |
-| Remove Password | `unlocked.pdf` |
-| Split | per-part name already computed by the engine (`p.name`) — out of scope, see below |
+| Tool            | Current filename                                                                  |
+| --------------- | --------------------------------------------------------------------------------- |
+| Merge           | `merged.pdf`                                                                      |
+| Rotate          | `rotated.pdf`                                                                     |
+| Encrypt         | `encrypted.pdf`                                                                   |
+| Extract Pages   | `extracted.pdf`                                                                   |
+| Remove Password | `unlocked.pdf`                                                                    |
+| Split           | per-part name already computed by the engine (`p.name`) — out of scope, see below |
 
 (`web/src/tools/*/tool.tsx`, all calling `downloadBytes(bytes, '<hardcoded>.pdf')`.)
 
@@ -45,22 +45,28 @@ input, pre-filled with the current default (e.g. `rotated.pdf`), editable before
 Download button is clicked:
 
 ```tsx
-{status.kind === 'done' && (
-  <div className="result">
-    <p>Rotated · {formatBytes(status.bytes.byteLength)}</p>
-    <label>
-      File name
-      <input
-        type="text"
-        value={filename}
-        onChange={(e) => setFilename(e.target.value)}
-      />
-    </label>
-    <button onClick={() => downloadBytes(status.bytes, sanitizeFilename(filename, 'rotated.pdf'))}>
-      Download
-    </button>
-  </div>
-)}
+{
+  status.kind === "done" && (
+    <div className="result">
+      <p>Rotated · {formatBytes(status.bytes.byteLength)}</p>
+      <label>
+        File name
+        <input
+          type="text"
+          value={filename}
+          onChange={(e) => setFilename(e.target.value)}
+        />
+      </label>
+      <button
+        onClick={() =>
+          downloadBytes(status.bytes, sanitizeFilename(filename, "rotated.pdf"))
+        }
+      >
+        Download
+      </button>
+    </div>
+  );
+}
 ```
 
 ## Implementation sketch

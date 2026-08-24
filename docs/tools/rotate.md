@@ -13,6 +13,7 @@ selected pages by 90/180/270.
 pages or a typed page selection.
 
 **Deferred:**
+
 - Thumbnail grid with per-page rotate buttons and CSS-preview — needs the render worker
   (`web/src/lib/render/`, built but not yet wired into any tool). A text field stands in
   for page selection meanwhile.
@@ -74,13 +75,13 @@ adds one output-sized buffer per distinct delta group (at most three).
 
 ## Edge cases
 
-| Case | Behaviour |
-| --- | --- |
-| Rotation not a multiple of 90 | Reject in the UI. PDF `/Rotate` only accepts multiples of 90 |
-| Negative rotation | Normalise to `((r % 360) + 360) % 360` before sending |
-| Rotation of 0 / 360 | No-op. Disable the button rather than writing an identical file |
-| Page already has `/Rotate 90` | Expected and common — remember rotation is additive |
-| Encrypted input | `ERR_ENCRYPTED` |
+| Case                          | Behaviour                                                       |
+| ----------------------------- | --------------------------------------------------------------- |
+| Rotation not a multiple of 90 | Reject in the UI. PDF `/Rotate` only accepts multiples of 90    |
+| Negative rotation             | Normalise to `((r % 360) + 360) % 360` before sending           |
+| Rotation of 0 / 360           | No-op. Disable the button rather than writing an identical file |
+| Page already has `/Rotate 90` | Expected and common — remember rotation is additive             |
+| Encrypted input               | `ERR_ENCRYPTED`                                                 |
 
 ## UI states
 

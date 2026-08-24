@@ -23,18 +23,20 @@ the wrong thing by trusting it.
 There is **no signaling server**. None. The relevant constants and functions:
 
 ```js
-const Me = 65536          // chunk size: 64 KB
-const xt = 7000           // ICE gathering timeout: 7 s
-const Pe = { iceServers: [
-  { urls: "stun:stun.l.google.com:19302"  },
-  { urls: "stun:stun1.l.google.com:19302" },
-  { urls: "stun:stun2.l.google.com:19302" },
-]}
+const Me = 65536; // chunk size: 64 KB
+const xt = 7000; // ICE gathering timeout: 7 s
+const Pe = {
+  iceServers: [
+    { urls: "stun:stun.l.google.com:19302" },
+    { urls: "stun:stun1.l.google.com:19302" },
+    { urls: "stun:stun2.l.google.com:19302" },
+  ],
+};
 
-const Te = s => btoa(unescape(encodeURIComponent(JSON.stringify(s))))   // encode
-const De = s => JSON.parse(decodeURIComponent(escape(atob(s.trim()))))  // decode
+const Te = (s) => btoa(unescape(encodeURIComponent(JSON.stringify(s)))); // encode
+const De = (s) => JSON.parse(decodeURIComponent(escape(atob(s.trim())))); // decode
 
-const je = s => `${origin}/p2p-share#o=${s}`                            // share link
+const je = (s) => `${origin}/p2p-share#o=${s}`; // share link
 ```
 
 The flow:
@@ -54,12 +56,19 @@ feels seamless in a casual demo and clumsy in real use.
 
 ```js
 // PBKDF2-SHA256, 200k iterations → AES-256-GCM
-deriveKey({ name: "PBKDF2", salt, iterations: 2e5, hash: "SHA-256" },
-          keyMaterial, { name: "AES-GCM", length: 256 }, false, ["encrypt","decrypt"])
+deriveKey(
+  { name: "PBKDF2", salt, iterations: 2e5, hash: "SHA-256" },
+  keyMaterial,
+  { name: "AES-GCM", length: 256 },
+  false,
+  ["encrypt", "decrypt"],
+);
 
 // envelope: salt(16) ‖ iv(12) ‖ ciphertext
-const y = new Uint8Array(28 + ct.byteLength)
-y.set(salt, 0); y.set(iv, 16); y.set(new Uint8Array(ct), 28)
+const y = new Uint8Array(28 + ct.byteLength);
+y.set(salt, 0);
+y.set(iv, 16);
+y.set(new Uint8Array(ct), 28);
 ```
 
 Plus gzip via `CompressionStream` (kept only when the result is actually smaller),
@@ -69,14 +78,14 @@ only.
 
 ### Assessment
 
-| Aspect | Verdict |
-| --- | --- |
-| No signaling server | Genuinely impressive, and genuinely bad UX — two-way manual paste |
-| SDP in URL fragment | Correct. Fragments are never sent to servers |
-| 7 s vanilla-ICE block | Forced by having no channel for late candidates |
-| Crypto envelope | Sound construction, correctly implemented |
-| STUN-only, no TURN | Honest trade-off, poorly communicated to users |
-| Blog vs code | **Materially inaccurate.** Do not cite it as a reference |
+| Aspect                | Verdict                                                           |
+| --------------------- | ----------------------------------------------------------------- |
+| No signaling server   | Genuinely impressive, and genuinely bad UX — two-way manual paste |
+| SDP in URL fragment   | Correct. Fragments are never sent to servers                      |
+| 7 s vanilla-ICE block | Forced by having no channel for late candidates                   |
+| Crypto envelope       | Sound construction, correctly implemented                         |
+| STUN-only, no TURN    | Honest trade-off, poorly communicated to users                    |
+| Blog vs code          | **Materially inaccurate.** Do not cite it as a reference          |
 
 ---
 
@@ -137,10 +146,11 @@ type Hub struct {
 ```
 
 Rules:
+
 - Room TTL 10 minutes; a janitor goroutine sweeps expired rooms.
 - Evicted as soon as both peers disconnect.
 - Third join attempt on a full room → `error{code: "room_full"}`.
-- No persistence, no payload logging. Log room *counts*, never room codes or contents.
+- No persistence, no payload logging. Log room _counts_, never room codes or contents.
 - Rate-limit room creation per IP — the only abuse vector the server has.
 
 Room codes: 6 characters of Crockford base32 (no `I`, `L`, `O`, `U` — unambiguous when
@@ -154,7 +164,9 @@ The main UX win. ihatepdf blocks 7 s waiting for full gathering because it has n
 send a late candidate. With a relay we send each candidate as it arrives:
 
 ```ts
-pc.onicecandidate = e => { if (e.candidate) ws.send({ type: 'ice', data: e.candidate }) }
+pc.onicecandidate = (e) => {
+  if (e.candidate) ws.send({ type: "ice", data: e.candidate });
+};
 ```
 
 Connection establishes in a few hundred milliseconds instead of seven-plus seconds, and
@@ -185,7 +197,7 @@ this layer does nothing against a passive network observer. What it defends agai
 **a malicious or compromised signaling server rewriting the SDP fingerprints to insert
 itself as a man in the middle.**
 
-That threat is *specific to our design*. ihatepdf has no signaling server, so for them the
+That threat is _specific to our design_. ihatepdf has no signaling server, so for them the
 password layer is close to redundant. We introduced the server, so we owe users the layer
 that neutralises it. The UI should say this in one plain sentence rather than the usual
 "military-grade encryption" noise.
@@ -196,30 +208,30 @@ travel together, the layer protects nothing.
 ### No TURN
 
 STUN-only. Symmetric NAT and strict corporate firewalls will fail outright — roughly
-10–15% of attempts by industry convention *(not measured by us; measure it)*.
+10–15% of attempts by industry convention _(not measured by us; measure it)_.
 
 TURN is the only fix, and it would relay every byte through a server, breaking the entire
 premise. **We will not add TURN.**
 
-What we owe users instead is an honest failure: after ICE reaches `failed`, say *"Your
+What we owe users instead is an honest failure: after ICE reaches `failed`, say _"Your
 network blocks direct connections — this usually means a corporate firewall or a mobile
-carrier NAT. Try a different network, or use a regular file transfer."* Not a spinner,
+carrier NAT. Try a different network, or use a regular file transfer."_ Not a spinner,
 not a silent hang. ihatepdf's version leaves users staring at a dead progress bar.
 
 ---
 
 ## Edge cases
 
-| Case | Behaviour |
-| --- | --- |
-| Receiver never joins | Room expires at 10 min; sender told plainly |
-| Sender closes tab mid-transfer | Receiver gets `oniceconnectionstatechange → disconnected`; partial file discarded |
-| Signaling server unreachable | Fall back to ihatepdf's manual paste flow. Worth keeping precisely because it needs no server |
-| Both peers behind symmetric NAT | ICE fails; the message above |
-| Very large file (>4 GB) | Works — chunked and streamed. Warn about the time and the need to keep both tabs open |
-| Wrong password | GCM auth tag fails. Report "wrong password", not "file corrupt" — the distinction matters |
-| Multiple files | Send sequentially over one channel with a header frame per file |
-| Same-browser tabs | `BroadcastChannel` shortcut, as theirs |
+| Case                            | Behaviour                                                                                     |
+| ------------------------------- | --------------------------------------------------------------------------------------------- |
+| Receiver never joins            | Room expires at 10 min; sender told plainly                                                   |
+| Sender closes tab mid-transfer  | Receiver gets `oniceconnectionstatechange → disconnected`; partial file discarded             |
+| Signaling server unreachable    | Fall back to ihatepdf's manual paste flow. Worth keeping precisely because it needs no server |
+| Both peers behind symmetric NAT | ICE fails; the message above                                                                  |
+| Very large file (>4 GB)         | Works — chunked and streamed. Warn about the time and the need to keep both tabs open         |
+| Wrong password                  | GCM auth tag fails. Report "wrong password", not "file corrupt" — the distinction matters     |
+| Multiple files                  | Send sequentially over one channel with a header frame per file                               |
+| Same-browser tabs               | `BroadcastChannel` shortcut, as theirs                                                        |
 
 ## UI states
 

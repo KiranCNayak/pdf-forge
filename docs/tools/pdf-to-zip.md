@@ -5,7 +5,7 @@
 ## Purpose
 
 Render every page to an image and deliver them as a single ZIP. Mechanically it is
-[pdf-to-image](pdf-to-image.md) plus archiving — but it is the *bulk* path, so the memory
+[pdf-to-image](pdf-to-image.md) plus archiving — but it is the _bulk_ path, so the memory
 discipline that pdf-to-image can sometimes get away with skipping is mandatory here.
 
 Cheap to build once pdf-to-image exists. Worth its own route because "download all pages
@@ -26,11 +26,11 @@ pdf-to-image. The only new part is streaming into the archive.
 // Stream pages into the ZIP as they render — never hold all blobs at once
 for (const batch of batches(pages, deviceCaps.maxPagesPerBatch)) {
   for (const pageNr of batch) {
-    const blob = await renderPageToBlob(pageNr, scale, format)
-    zip.file(`page-${String(pageNr).padStart(4, '0')}.${ext}`, blob)
-    releaseCanvas()
+    const blob = await renderPageToBlob(pageNr, scale, format);
+    zip.file(`page-${String(pageNr).padStart(4, "0")}.${ext}`, blob);
+    releaseCanvas();
   }
-  await pause(2000)   // let GC run between batches
+  await pause(2000); // let GC run between batches
 }
 ```
 
@@ -65,15 +65,15 @@ Show it. "This will produce roughly a 480 MB ZIP" stops a bad request before it 
 
 ## Edge cases
 
-| Case | Behaviour |
-| --- | --- |
-| Very large document | Estimator refuses or downgrades DPI before starting |
-| Estimated ZIP exceeds device memory | Suggest splitting the document first, or lowering DPI |
-| Single-page document | Skip the ZIP; hand back the image directly |
-| Page exceeds the 16,384 px canvas limit | Clamp, report effective DPI |
-| Encrypted input | Prompt for password |
-| User cancels mid-run | Abort the loop, discard the partial archive, free canvases |
-| Browser download blocked | Fall back through the Safari-compatible chain — anchor `download`, then `window.open` which triggers the iOS share sheet |
+| Case                                    | Behaviour                                                                                                                |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| Very large document                     | Estimator refuses or downgrades DPI before starting                                                                      |
+| Estimated ZIP exceeds device memory     | Suggest splitting the document first, or lowering DPI                                                                    |
+| Single-page document                    | Skip the ZIP; hand back the image directly                                                                               |
+| Page exceeds the 16,384 px canvas limit | Clamp, report effective DPI                                                                                              |
+| Encrypted input                         | Prompt for password                                                                                                      |
+| User cancels mid-run                    | Abort the loop, discard the partial archive, free canvases                                                               |
+| Browser download blocked                | Fall back through the Safari-compatible chain — anchor `download`, then `window.open` which triggers the iOS share sheet |
 
 ## UI states
 

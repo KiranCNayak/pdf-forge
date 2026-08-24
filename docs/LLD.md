@@ -2,7 +2,7 @@
 
 > Companion to `docs/HLD.md`. This document holds the parts that are easy to get wrong
 > and expensive to discover late. Everything here was checked against pdfcpu v0.15.0 and
-> Go 1.25 unless marked *(estimate)*.
+> Go 1.25 unless marked _(estimate)_.
 
 ---
 
@@ -39,7 +39,7 @@ File (main thread)
 Two copies of the file bytes plus pdfcpu's object model. Budget accordingly — §2.
 
 Transferables are mandatory, not an optimisation. Structured-clone of a 150 MB buffer
-costs a full copy *and* leaves the original alive on the main thread.
+costs a full copy _and_ leaves the original alive on the main thread.
 
 ### 1.3 RPC envelope
 
@@ -47,20 +47,26 @@ Main thread → worker:
 
 ```ts
 type Request = {
-  id: string          // uuid, correlates the response
-  op: string          // "merge" | "rotate" | "compress" | …
-  params: unknown     // JSON-serialisable, op-specific
-  buffers: ArrayBuffer[]   // passed in postMessage transfer list
-}
+  id: string; // uuid, correlates the response
+  op: string; // "merge" | "rotate" | "compress" | …
+  params: unknown; // JSON-serialisable, op-specific
+  buffers: ArrayBuffer[]; // passed in postMessage transfer list
+};
 ```
 
 Worker → main thread:
 
 ```ts
 type Response =
-  | { id: string; ok: true;  result: unknown; buffers: ArrayBuffer[] }
+  | { id: string; ok: true; result: unknown; buffers: ArrayBuffer[] }
   | { id: string; ok: false; code: ErrorCode; message: string }
-  | { id: string; kind: "progress"; done: number; total: number; stage?: string }
+  | {
+      id: string;
+      kind: "progress";
+      done: number;
+      total: number;
+      stage?: string;
+    };
 ```
 
 `EngineClient` (`web/src/engine/`) owns a `Map<id, {resolve, reject, onProgress}>` and the
@@ -149,16 +155,16 @@ what a user pressing Cancel actually wants.
 
 Go errors become stable string codes so the UI never string-matches on messages:
 
-| Code | Meaning | Typical UI |
-| --- | --- | --- |
-| `ERR_ENCRYPTED` | Input needs a password we don't have | Prompt for password |
-| `ERR_BAD_PASSWORD` | Supplied password rejected | Re-prompt, don't clear the file |
-| `ERR_CORRUPT` | Malformed xref / unparseable | Offer Repair (Phase 4) |
-| `ERR_UNSUPPORTED` | Valid PDF, feature we don't handle | Explain specifically |
-| `ERR_TOO_LARGE` | Above the device tier cap | Show the cap and the file size |
-| `ERR_OOM` | Allocation failed mid-op | Suggest fewer pages / lower DPI |
-| `ERR_CANCELLED` | User cancelled | Silent |
-| `ERR_INTERNAL` | Panic or unclassified | Generic, with the code visible for bug reports |
+| Code               | Meaning                              | Typical UI                                     |
+| ------------------ | ------------------------------------ | ---------------------------------------------- |
+| `ERR_ENCRYPTED`    | Input needs a password we don't have | Prompt for password                            |
+| `ERR_BAD_PASSWORD` | Supplied password rejected           | Re-prompt, don't clear the file                |
+| `ERR_CORRUPT`      | Malformed xref / unparseable         | Offer Repair (Phase 4)                         |
+| `ERR_UNSUPPORTED`  | Valid PDF, feature we don't handle   | Explain specifically                           |
+| `ERR_TOO_LARGE`    | Above the device tier cap            | Show the cap and the file size                 |
+| `ERR_OOM`          | Allocation failed mid-op             | Suggest fewer pages / lower DPI                |
+| `ERR_CANCELLED`    | User cancelled                       | Silent                                         |
+| `ERR_INTERNAL`     | Panic or unclassified                | Generic, with the code visible for bug reports |
 
 `classify(err)` lives in `internal/bridge` and maps pdfcpu's sentinel errors. Keep it in
 one place; scattering the mapping guarantees drift.
@@ -174,7 +180,7 @@ Go allocator, never to the browser. After one 150 MB PDF, the worker holds its h
 mark until it dies.
 
 **Policy:** `EngineClient` tracks bytes processed since the worker started. Above a
-watermark *(placeholder: 64 MB — measure in Phase 0)* it terminates and respawns after
+watermark _(placeholder: 64 MB — measure in Phase 0)_ it terminates and respawns after
 the job completes. Respawn is `WebAssembly.instantiateStreaming` against a
 service-worker-cached response, estimated ~100 ms.
 
@@ -194,7 +200,7 @@ For a file of size `S`:
 ```
 
 ihatepdf's JS estimator assumes ~3–4× for rendering. Ours is a different shape: theirs
-scales with *page count × DPI²*, ours with *file size*. Two estimators, not one:
+scales with _page count × DPI²_, ours with _file size_. Two estimators, not one:
 
 ```ts
 // Structural ops (Go) — scales with bytes
@@ -216,7 +222,7 @@ Inherited from ihatepdf, unchanged, because it is correct:
 - Hard clamp at 16,384 px per axis; if `viewport × scale` exceeds it, fall back to
   `min(MAX/w, MAX/h) * 0.95`.
 - `canvas.width = canvas.height = 0` after use — this, not nulling the reference, is what
-  releases GPU texture memory. A 4000×6000 canvas holds ~96 MB RAM *plus* ~96 MB VRAM,
+  releases GPU texture memory. A 4000×6000 canvas holds ~96 MB RAM _plus_ ~96 MB VRAM,
   and on shared-memory mobile that's 192 MB.
 - Batch large jobs; pause ~2 s between batches so Chrome's GC (idle-triggered at roughly
   1–1.5 s) actually runs. `window.gc` is a hint the browser may ignore.
@@ -256,7 +262,7 @@ entry.Object = *sd
 ```
 
 **Why not `api.UpdateImages`.** It is the obvious call and it does not work for us:
-pdfcpu v0.15.0 validates that the replacement has *identical pixel dimensions* and errors
+pdfcpu v0.15.0 validates that the replacement has _identical pixel dimensions_ and errors
 with `replacement dimensions 595x842, want 1240x1754`. That rules out downsampling, which
 is the entire point of the pass. The three lines above are what `UpdateImages` does
 internally minus that check, and dropping the check is safe because a PDF places an image
@@ -305,12 +311,12 @@ software and timestamps. Cheap, and it feeds the future Privacy Scanner.
 Deliberately mapped 1:1 onto Ghostscript's so the Phase-5 benchmark compares like with
 like:
 
-| Preset | Ghostscript equivalent | DPI | JPEG quality |
-| --- | --- | --- | --- |
-| Screen | `/screen` | 72 | 40 |
-| eBook | `/ebook` | 150 | 60 |
-| Printer | `/printer` | 300 | 80 |
-| Prepress | `/prepress` | 300 | 92 |
+| Preset   | Ghostscript equivalent | DPI | JPEG quality |
+| -------- | ---------------------- | --- | ------------ |
+| Screen   | `/screen`              | 72  | 40           |
+| eBook    | `/ebook`               | 150 | 60           |
+| Printer  | `/printer`             | 300 | 80           |
+| Prepress | `/prepress`            | 300 | 92           |
 
 ### 3.3 Target-size mode
 
@@ -352,12 +358,12 @@ Full teardown of ihatepdf's version and our replacement live in
   `bufferedAmountLowThreshold` backpressure.
 - **Threat model, stated correctly:** DTLS already encrypts the data channel, so the
   optional PBKDF2/AES-256-GCM layer is not protecting against passive eavesdroppers. It
-  defends against *a malicious or compromised signaling server tampering with the SDP
-  fingerprints to insert itself as a man in the middle*. Since we are the ones introducing
+  defends against _a malicious or compromised signaling server tampering with the SDP
+  fingerprints to insert itself as a man in the middle_. Since we are the ones introducing
   a signaling server, that layer earns its place — more so than in ihatepdf's design,
   where it mostly duplicates DTLS.
 - **No TURN.** Symmetric NAT and strict corporate firewalls will fail outright, roughly
-  10–15% of attempts *(industry figure, not measured)*. Adding TURN is the only fix and it
+  10–15% of attempts _(industry figure, not measured)_. Adding TURN is the only fix and it
   would relay bytes through a server, breaking the core promise. Surface a clear failure
   message rather than a hang.
 
@@ -379,10 +385,10 @@ Then content-hash both filenames for immutable caching.
 
 Measured 2026-08-24 with 8 ops linked:
 
-| | Size |
-| --- | --- |
-| Raw | 17.73 MB |
-| gzip -9 | 4.24 MB |
+|             | Size        |
+| ----------- | ----------- |
+| Raw         | 17.73 MB    |
+| gzip -9     | 4.24 MB     |
 | brotli -q11 | **3.00 MB** |
 
 Cloudflare Pages serves Brotli automatically.
@@ -394,12 +400,12 @@ true figure. Our first attempt made exactly this mistake and under-reported by ~
 
 Size bisection, for anyone trying to trim it later:
 
-| Configuration | Raw |
-| --- | --- |
-| Go runtime + `syscall/js` + bridge, no pdfcpu | 2.46 MB |
-| `+ encoding/json` | +0.54 MB |
+| Configuration                                    | Raw      |
+| ------------------------------------------------ | -------- |
+| Go runtime + `syscall/js` + bridge, no pdfcpu    | 2.46 MB  |
+| `+ encoding/json`                                | +0.54 MB |
 | `+ pdfcpu` (any single op with a real call path) | ~16.9 MB |
-| `+ 7 more ops` | 17.73 MB |
+| `+ 7 more ops`                                   | 17.73 MB |
 
 The cliff is pdfcpu itself, and it is nearly all fixed cost — going from one op to eight
 added only 0.8 MB. **Adding operations is close to free; the first one is not.** That
@@ -413,11 +419,14 @@ needs an upstream build tag, so it is an upstream conversation rather than a loc
 Loading, in `engine.worker.ts`:
 
 ```ts
-importScripts('/wasm/wasm_exec.js')
-const go = new Go()
-const { instance } = await WebAssembly.instantiateStreaming(fetch(WASM_URL), go.importObject)
-go.run(instance)                    // returns only when main() returns — ours never does
-await readySignal                   // __pdfforge_ready fires after ops are registered
+importScripts("/wasm/wasm_exec.js");
+const go = new Go();
+const { instance } = await WebAssembly.instantiateStreaming(
+  fetch(WASM_URL),
+  go.importObject,
+);
+go.run(instance); // returns only when main() returns — ours never does
+await readySignal; // __pdfforge_ready fires after ops are registered
 ```
 
 Never `await go.run(...)`. It resolves only on Go runtime exit, which for us means

@@ -14,6 +14,7 @@ competitor site, and the natural first tool to build — it exercises the whole 
 up/down reorder, remove individual files, merge → download.
 
 **Deferred:**
+
 - Drag-to-reorder — shipped as up/down buttons instead. Same effect, no drag library.
 - Divider page — `MergeParams.DividerPage` exists in the engine op but isn't exposed in
   the UI yet.
@@ -55,22 +56,22 @@ err := api.MergeRaw(readers, &out, p.DividerPage, conf)
 
 Peak ≈ `2 × Σ(input sizes)` for the copies, plus pdfcpu's object model for all documents
 simultaneously, since merge must hold every source open at once. **This is the most
-memory-hungry op relative to input size.** Enforce the device tier against the *sum*, not
+memory-hungry op relative to input size.** Enforce the device tier against the _sum_, not
 the largest file.
 
 Above the watermark, respawn the worker afterwards (`docs/LLD.md` §2.1).
 
 ## Edge cases
 
-| Case | Behaviour |
-| --- | --- |
-| One input is encrypted | `ERR_ENCRYPTED` naming *which* file. Offer per-file password entry |
-| Mixed page sizes | Allowed — pdfcpu preserves each page's box. Warn in the UI, don't normalise |
-| One input corrupt | `ERR_CORRUPT` naming the file; let the user drop it and retry |
-| Single file supplied | Disable the button; merging one file is a no-op, not an error |
-| Sum exceeds device tier | `ERR_TOO_LARGE` before starting, showing the cap and the sum |
-| Duplicate file added twice | Allow — merging a document with itself is legitimate |
-| Form fields with colliding names | pdfcpu handles field renaming; verify against a fixture |
+| Case                             | Behaviour                                                                   |
+| -------------------------------- | --------------------------------------------------------------------------- |
+| One input is encrypted           | `ERR_ENCRYPTED` naming _which_ file. Offer per-file password entry          |
+| Mixed page sizes                 | Allowed — pdfcpu preserves each page's box. Warn in the UI, don't normalise |
+| One input corrupt                | `ERR_CORRUPT` naming the file; let the user drop it and retry               |
+| Single file supplied             | Disable the button; merging one file is a no-op, not an error               |
+| Sum exceeds device tier          | `ERR_TOO_LARGE` before starting, showing the cap and the sum                |
+| Duplicate file added twice       | Allow — merging a document with itself is legitimate                        |
+| Form fields with colliding names | pdfcpu handles field renaming; verify against a fixture                     |
 
 ## UI states
 
