@@ -9,7 +9,7 @@
 // for it — see docs/tools/*.md's a11y notes and the `dragging-alternative`
 // rule from the ui-ux-pro-max skill.
 
-import { useId, useState, type DragEvent } from 'react'
+import { useId, useRef, useState, type DragEvent } from 'react'
 
 interface Props {
   onFiles: (files: FileList | null) => void
@@ -30,8 +30,31 @@ export function FilePicker({
   const [dragOver, setDragOver] = useState(false)
   const inputId = useId()
 
+  // The drop zone has child elements (icon, label text, hidden input) inside this
+  // <label>, so `dragleave` fires every time the pointer crosses into or out of a
+  // child, not just when it truly leaves the zone. A plain boolean flickers off
+  // mid-drag. Count enters/leaves instead — only clear at zero. See docs/STATE.md
+  // backlog for the repro that caught this.
+  const dragDepth = useRef(0)
+
+  function onDragEnter(e: DragEvent<HTMLLabelElement>) {
+    e.preventDefault()
+    dragDepth.current += 1
+    setDragOver(true)
+  }
+
+  function onDragLeave(e: DragEvent<HTMLLabelElement>) {
+    e.preventDefault()
+    dragDepth.current -= 1
+    if (dragDepth.current <= 0) {
+      dragDepth.current = 0
+      setDragOver(false)
+    }
+  }
+
   function onDrop(e: DragEvent<HTMLLabelElement>) {
     e.preventDefault()
+    dragDepth.current = 0
     setDragOver(false)
     onFiles(e.dataTransfer.files)
   }
@@ -40,11 +63,9 @@ export function FilePicker({
     <label
       htmlFor={inputId}
       className={`file-picker${dragOver ? ' file-picker--drag' : ''}`}
-      onDragOver={(e) => {
-        e.preventDefault()
-        setDragOver(true)
-      }}
-      onDragLeave={() => setDragOver(false)}
+      onDragEnter={onDragEnter}
+      onDragOver={(e) => e.preventDefault()}
+      onDragLeave={onDragLeave}
       onDrop={onDrop}
     >
       <svg

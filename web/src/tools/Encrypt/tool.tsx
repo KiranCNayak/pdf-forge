@@ -8,11 +8,13 @@
 // escape hatches the doc treats as advanced-only, so V1 doesn't expose them.
 
 import { useState } from 'react'
+import { FilenameField } from '../../components/FilenameField'
 import { FilePicker } from '../../components/FilePicker'
 import { engine } from '../../engine/EngineClient'
 import { EngineError } from '../../engine/protocol'
 import { checkBudget, deviceCaps, estimateEngineBytes, formatBytes } from '../../lib/device'
 import { downloadBytes } from '../../lib/download'
+import { sanitizeFilename } from '../../lib/filename'
 
 interface Staged {
   file: File
@@ -43,6 +45,7 @@ export default function EncryptTool() {
   const [granted, setGranted] = useState<boolean[]>(PERMISSION_BITS.map(() => true))
   const [acknowledged, setAcknowledged] = useState(false)
   const [status, setStatus] = useState<Status>({ kind: 'idle' })
+  const [filename, setFilename] = useState('encrypted.pdf')
   const caps = deviceCaps()
 
   const budget = checkBudget(estimateEngineBytes(staged?.file.size ?? 0), caps)
@@ -191,7 +194,10 @@ export default function EncryptTool() {
       {status.kind === 'done' && (
         <div className="result">
           <p>Encrypted · {formatBytes(status.bytes.byteLength)}</p>
-          <button onClick={() => downloadBytes(status.bytes, 'encrypted.pdf')}>Download</button>
+          <FilenameField value={filename} onChange={setFilename} />
+          <button onClick={() => downloadBytes(status.bytes, sanitizeFilename(filename, 'encrypted.pdf'))}>
+            Download
+          </button>
         </div>
       )}
     </>

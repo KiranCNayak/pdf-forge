@@ -8,11 +8,13 @@
 // re-pick, per the doc's edge-case table.
 
 import { useState } from 'react'
+import { FilenameField } from '../../components/FilenameField'
 import { FilePicker } from '../../components/FilePicker'
 import { engine } from '../../engine/EngineClient'
 import { EngineError } from '../../engine/protocol'
 import { checkBudget, deviceCaps, estimateEngineBytes, formatBytes } from '../../lib/device'
 import { downloadBytes } from '../../lib/download'
+import { sanitizeFilename } from '../../lib/filename'
 
 interface Staged {
   file: File
@@ -31,6 +33,7 @@ export default function RemovePasswordTool() {
   const [staged, setStaged] = useState<Staged | null>(null)
   const [password, setPassword] = useState('')
   const [status, setStatus] = useState<Status>({ kind: 'idle' })
+  const [filename, setFilename] = useState('unlocked.pdf')
   const caps = deviceCaps()
 
   const budget = checkBudget(estimateEngineBytes(staged?.file.size ?? 0), caps)
@@ -143,7 +146,10 @@ export default function RemovePasswordTool() {
       {status.kind === 'done' && (
         <div className="result">
           <p>Password removed · {formatBytes(status.bytes.byteLength)}</p>
-          <button onClick={() => downloadBytes(status.bytes, 'unlocked.pdf')}>Download</button>
+          <FilenameField value={filename} onChange={setFilename} />
+          <button onClick={() => downloadBytes(status.bytes, sanitizeFilename(filename, 'unlocked.pdf'))}>
+            Download
+          </button>
         </div>
       )}
     </>

@@ -3,11 +3,13 @@
 // Every other tool should follow this shape. See docs/tools/merge.md.
 
 import { useState } from 'react'
+import { FilenameField } from '../../components/FilenameField'
 import { FilePicker } from '../../components/FilePicker'
 import { engine } from '../../engine/EngineClient'
 import { EngineError } from '../../engine/protocol'
 import { checkBudget, deviceCaps, estimateEngineBytes, formatBytes } from '../../lib/device'
 import { downloadBytes } from '../../lib/download'
+import { sanitizeFilename } from '../../lib/filename'
 
 interface Staged {
   file: File
@@ -24,6 +26,7 @@ type Status =
 export default function MergeTool() {
   const [staged, setStaged] = useState<Staged[]>([])
   const [status, setStatus] = useState<Status>({ kind: 'idle' })
+  const [filename, setFilename] = useState('merged.pdf')
   const caps = deviceCaps()
 
   const totalBytes = staged.reduce((n, s) => n + s.file.size, 0)
@@ -142,7 +145,10 @@ export default function MergeTool() {
           <p>
             Merged {status.pages} pages · {formatBytes(status.bytes.byteLength)}
           </p>
-          <button onClick={() => downloadBytes(status.bytes, 'merged.pdf')}>Download</button>
+          <FilenameField value={filename} onChange={setFilename} />
+          <button onClick={() => downloadBytes(status.bytes, sanitizeFilename(filename, 'merged.pdf'))}>
+            Download
+          </button>
         </div>
       )}
     </>

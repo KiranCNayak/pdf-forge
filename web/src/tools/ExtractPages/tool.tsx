@@ -5,11 +5,13 @@
 // selection field only, same as the engine op itself expects.
 
 import { useState } from 'react'
+import { FilenameField } from '../../components/FilenameField'
 import { FilePicker } from '../../components/FilePicker'
 import { engine } from '../../engine/EngineClient'
 import { EngineError } from '../../engine/protocol'
 import { checkBudget, deviceCaps, estimateEngineBytes, formatBytes } from '../../lib/device'
 import { downloadBytes } from '../../lib/download'
+import { sanitizeFilename } from '../../lib/filename'
 
 interface Staged {
   file: File
@@ -29,6 +31,7 @@ export default function ExtractPagesTool() {
   const [password, setPassword] = useState('')
   const [selection, setSelection] = useState('')
   const [status, setStatus] = useState<Status>({ kind: 'idle' })
+  const [filename, setFilename] = useState('extracted.pdf')
   const caps = deviceCaps()
 
   const budget = checkBudget(estimateEngineBytes(staged?.file.size ?? 0), caps)
@@ -157,7 +160,10 @@ export default function ExtractPagesTool() {
       {status.kind === 'done' && (
         <div className="result">
           <p>Extracted {formatBytes(status.bytes.byteLength)}</p>
-          <button onClick={() => downloadBytes(status.bytes, 'extracted.pdf')}>Download</button>
+          <FilenameField value={filename} onChange={setFilename} />
+          <button onClick={() => downloadBytes(status.bytes, sanitizeFilename(filename, 'extracted.pdf'))}>
+            Download
+          </button>
         </div>
       )}
     </>
