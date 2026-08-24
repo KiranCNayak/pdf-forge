@@ -11,6 +11,13 @@ not crack. Say so above the fold, because a large share of arriving traffic is l
 recovery, and letting them discover that after uploading wastes their time and our
 credibility.
 
+## Status
+
+**Shipped** (`web/src/tools/RemovePassword/tool.tsx`): matches this doc closely —
+encryption detection, password prompt, wrong-password re-prompt with the file retained,
+"not password recovery" messaging up front. Nothing notable deferred; this is the tool
+that tracks its plan doc most closely.
+
 ## User flow
 
 1. Pick a file. Detect encryption immediately (attempt a parse; `ERR_ENCRYPTED` confirms).

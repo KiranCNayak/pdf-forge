@@ -8,6 +8,18 @@ Add AES-256 password protection and permission flags. One of the strongest argum
 the Go engine: `pdf-lib` — what every JS-based competitor uses — has no real encryption
 support, so they either skip this tool or ship something weak.
 
+## Status
+
+**Shipped** (`web/src/tools/Encrypt/tool.tsx`): open + owner password, permission
+checkboxes (print, modify contents, copy/extract, annotate/fill forms, assemble),
+AES-256, a "no recovery" acknowledgment checkbox gating submission once an open password
+is set.
+
+**Deferred:**
+- 128-bit / 40-bit key length — `EncryptParams.KeyLength` supports it, but the UI locks
+  to 256 per this doc's own "advanced-only" call.
+- Password strength meter.
+
 ## User flow
 
 1. Pick a file.

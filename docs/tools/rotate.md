@@ -7,6 +7,18 @@
 Fix sideways or upside-down pages — usually scanner output. Rotate the whole document or
 selected pages by 90/180/270.
 
+## Status
+
+**Shipped** (`web/src/tools/Rotate/tool.tsx`): pick one of 90°/180°/270°, apply to all
+pages or a typed page selection.
+
+**Deferred:**
+- Thumbnail grid with per-page rotate buttons and CSS-preview — needs the render worker
+  (`web/src/lib/render/`, built but not yet wired into any tool). A text field stands in
+  for page selection meanwhile.
+- Mixed per-page rotations (different pages by different amounts in one submit) — one
+  rotation value applies to the whole selection per call.
+
 ## User flow
 
 1. Pick a file.

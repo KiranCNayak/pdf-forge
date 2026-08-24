@@ -7,6 +7,17 @@
 Divide one PDF into several. Distinct from [extract-pages](extract-pages.md): split means
 *cut this document up*, extract means *give me these pages as one file*.
 
+## Status
+
+**Shipped** (`web/src/tools/Split/tool.tsx`): every-page, every-N-pages, and by-ranges
+modes; per-part downloads plus a "download all" button.
+
+**Deferred:**
+- "At page numbers" mode (cut before pages 5, 12, 30) — not implemented; only
+  each/span/ranges exist today.
+- ZIP download — parts download individually (staggered) instead. No zip dependency has
+  been added; flag before adding one, per `docs/PARALLEL.md`.
+
 ## User flow
 
 1. Pick a file. Show page count.

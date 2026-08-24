@@ -141,19 +141,31 @@ of leaving a stale plan sitting around once the code exists.
 
 ## Next task
 
-**Phase 1 UI**, plus whatever else runs alongside it. Routing exists; the engine ops for
-Phase 1 exist and are tested. What is missing is a tool page per operation.
+**Phase 1 UI is done.** All six Phase 1 tool pages (`Merge`, `Split`, `ExtractPages`,
+`Rotate`, `Encrypt`, `RemovePassword`) are built and follow the shared shape: staged
+input → device-tier budget check → engine call with progress → typed error handling on
+`EngineError.code` → download. `web/src/tools/Merge/` is still the reference to copy for
+anything new.
 
-Build `split`, `extractPages`, `rotate`, `encrypt`, `decrypt` as directories under
-`web/src/tools/`, each following `web/src/tools/Merge/`: a `meta.ts` and a `tool.tsx`,
-with staged input → device-tier budget check → engine call with progress → typed error
-handling on `EngineError.code` → download.
+**What's next is closing Phase 2.** The engine op and the render worker both exist —
+neither has a tool page yet:
 
-`organize-pages` needs pdf.js thumbnails and is the first tool to touch the render
-worker — treat it as its own piece of work, not a fifth copy of the merge page.
+- **`compress`** — engine op is done and tested (Lane A). Needs `web/src/tools/Compress/`:
+  preset picker + target-size mode, per `docs/tools/compress.md`. No render worker
+  needed, so this is the simpler of the two and a good next pick.
+- **Render-worker tools** — `web/src/lib/render/` and `render.worker.ts` exist (Lane D)
+  but no tool imports them yet. `organize-pages`, `pdf-to-image`, `pdf-to-zip`,
+  `extract-text`, `images-to-pdf` all need it. `organize-pages` is the most involved
+  (thumbnail grid, drag-reorder, local-state edits before Apply) — treat it as its own
+  piece of work, not a variant of another tool page.
+- Once the render worker is wired into a tool, revisit `docs/tools/{merge,split,rotate,
+  encrypt,remove-password,extract-pages}.md` — several describe thumbnail pickers,
+  drag-reorder, or ZIP downloads that Phase 1 shipped without (documented in each
+  `tool.tsx`'s header comment). Decide per-tool whether to build the richer UX now that
+  the render worker is available, or update the doc to match what shipped.
 
-After that, Phase 2 opens with compress, which is where the engine choice earns out and
-where the design in `docs/LLD.md` §3 gets tested against reality.
+After Phase 2's tool pages, Phase 3 is P2P share — the signaling server already exists
+(Lane C) and is untouched by any tool page yet; see `docs/tools/p2p-share.md`.
 
 **This work parallelises.** `docs/PARALLEL.md` defines four non-overlapping lanes —
 engine ops, tool UIs, signaling server, render pipeline — and the worktree flow for

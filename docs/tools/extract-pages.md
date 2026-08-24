@@ -10,6 +10,15 @@ Pull a selection of pages out of a PDF into **one** new document. The complement
 Separate route because the user intent and the SEO intent both differ — "extract pages
 from PDF" and "split PDF" are distinct searches with distinct expectations.
 
+## Status
+
+**Shipped** (`web/src/tools/ExtractPages/tool.tsx`): typed page selection
+(`1-3, 5, 8-12`), extract → download.
+
+**Deferred:**
+- Click-to-select page thumbnails — needs the render worker, same as Rotate. Selection
+  is text-only for now.
+
 ## User flow
 
 1. Pick a file.

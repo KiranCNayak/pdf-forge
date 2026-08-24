@@ -8,6 +8,18 @@ Combine 2+ PDFs into one, in a user-chosen order. The highest-traffic tool on ev
 competitor site, and the natural first tool to build — it exercises the whole bridge
 (multi-buffer in, one buffer out, progress) without needing any rendering.
 
+## Status
+
+**Shipped** (`web/src/tools/Merge/tool.tsx`): drop or pick N files, page count per file,
+up/down reorder, remove individual files, merge → download.
+
+**Deferred:**
+- Drag-to-reorder — shipped as up/down buttons instead. Same effect, no drag library.
+- Divider page — `MergeParams.DividerPage` exists in the engine op but isn't exposed in
+  the UI yet.
+- Per-file password entry when one input is encrypted — currently surfaces as a per-file
+  error instead of a password field.
+
 ## User flow
 
 1. Drop or pick N files. Show name, size, page count for each (page count via a cheap
