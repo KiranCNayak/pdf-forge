@@ -23,6 +23,7 @@ export type OpName =
   | 'decrypt'
   | 'pageCount'
   | 'isEncrypted'
+  | 'compress'
 
 export interface Request {
   id: string
@@ -53,4 +54,23 @@ export class EngineError extends Error {
 export interface SplitPart {
   name: string
   bytes: Uint8Array
+}
+
+/**
+ * What compress returns. The skip counts are UI copy, not diagnostics:
+ * "8 of 12 images compressed, 4 skipped (transparency)" is a far better answer
+ * than a mysterious 3% saving. See docs/tools/compress.md.
+ */
+export interface CompressResult {
+  bytes: Uint8Array
+  originalSize: number
+  resultSize: number
+  /** Target mode only. False means "this is the best we managed" — say so. */
+  reachedTarget: boolean
+  /** Compression would have grown the file, so the original came back untouched. */
+  fallback: boolean
+  imagesTouched: number
+  imagesSkipped: number
+  /** Keys: transparency | stencil | thumbnail | jpeg2000 | unsupportedType | alreadyLowDPI | noGain */
+  skipReasons: Record<string, number>
 }

@@ -12,7 +12,7 @@ Phase 0 is complete. The engine runs end-to-end in a browser.
 
 | Layer | State |
 | --- | --- |
-| `engine/internal/ops` | 8 ops: merge, split, extractPages, rotate, encrypt, decrypt, pageCount, isEncrypted |
+| `engine/internal/ops` | 9 ops: merge, split, extractPages, rotate, encrypt, decrypt, pageCount, isEncrypted, **compress** (Lane A, Phase 2: structural + imaging + metadata passes, presets and target-size search) |
 | `engine/internal/bridge` | Error codes + `Classify`; `Promisify`, buffer copy, progress relay (js build tag) |
 | `engine/internal/wasmapi` | Self-registering JS adapters; ops register from `init()` |
 | `engine/cmd/wasm` | 4 lines. Calls `wasmapi.Install()` — never needs editing again |
@@ -26,13 +26,14 @@ Phase 0 is complete. The engine runs end-to-end in a browser.
 | `web/src/dev/smoke.ts` | 10-check browser smoke test |
 | `signaling/` | **Does not exist yet.** Phase 3 |
 
-24 Go tests pass. 10 browser checks pass. TypeScript is clean. Production build works.
+48 Go tests pass. 10 browser checks pass. TypeScript is clean. Production build works.
+Compress has no browser check yet — `__smoke()` predates it.
 
 ## Measured, not estimated
 
 | | |
 | --- | --- |
-| Wasm binary | 17.70 MB raw / 4.24 MB gzip / **3.00 MB Brotli** |
+| Wasm binary | 18.29 MB raw / 4.37 MB gzip / **3.08 MB Brotli** (was 17.70/4.24/3.00 before compress) |
 | Cold boot + merge | ~199 ms |
 | Warm merge | ~12.4 ms |
 | External requests at runtime | zero |
@@ -101,6 +102,11 @@ Each of these cost real time during Phase 0. All are guarded now; the guards are
    which would drag a filesystem shim into the Wasm build. `api.Collect` does it in memory.
 7. **Passwords with spaces are rejected on purpose.** pdfcpu encrypts them and then can
    never decrypt them. See `docs/tools/encrypt.md`.
+8. **`api.UpdateImages` cannot downsample.** pdfcpu v0.15.0 rejects a replacement image
+   whose pixel dimensions differ from the original, which is most of what compress does.
+   Compress replaces the xref entry itself instead — `docs/LLD.md` §3.1 explains why that
+   is safe. Also: extracting an image mutates its stream dict, so the context you plan on
+   must never be the context you write.
 
 ---
 

@@ -31,13 +31,22 @@ type CompressResult struct {
     OriginalSize  int64  `json:"originalSize"`
     ResultSize    int64  `json:"resultSize"`
     ReachedTarget bool   `json:"reachedTarget"`
+    Fallback      bool   `json:"fallback"`
     ImagesTouched int    `json:"imagesTouched"`
     ImagesSkipped int    `json:"imagesSkipped"`
     SkipReasons   map[string]int `json:"skipReasons"`
 }
 
-func Compress(input []byte, p CompressParams) (CompressResult, error)
+func Compress(input []byte, p CompressParams, prog Progress) (CompressResult, error)
 ```
+
+`Fallback` is the "already optimised" case below: the output came out bigger, so `Bytes`
+is the untouched input. There is deliberately no password parameter — an encrypted file
+returns `ERR_ENCRYPTED` and must go through remove-password first, so the UI can say why.
+
+`SkipReasons` keys are the `Skip*` constants in `internal/ops/compress.go`:
+`transparency`, `stencil`, `thumbnail`, `jpeg2000`, `unsupportedType`, `alreadyLowDPI`,
+`noGain`.
 
 The skip counters are not diagnostics for us — they are **UI copy**. "8 of 12 images
 compressed; 4 skipped (transparency)" is a far better answer than a mysterious 3%
@@ -120,3 +129,15 @@ bar.
 `encrypted_aes256.pdf`.
 
 Each maps to a specific branch above; this corpus is the tool's real test suite.
+
+**As built**, fixtures are generated in `compress_test.go` rather than committed, and two
+of them cannot be generated honestly:
+
+- `jpeg2000.pdf` — Go cannot *encode* JPX either, so there is nothing to build the fixture
+  from. The skip branch is asserted against `classifyImage` directly.
+- `huge_image_60mp.pdf` — 60 MP of RGBA is 240 MB of test data. The guard is exercised by
+  lowering `maxImagePixels` instead.
+
+Also worth knowing: pdfcpu normalises a 1-bit paletted PNG to 8 bpc on import, so the
+stencil *fixture* does not reach the stencil branch — it lands on `noGain`, which is the
+correct outcome for it and is asserted as such. The stencil rule itself is unit-tested.
