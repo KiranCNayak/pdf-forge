@@ -25,7 +25,7 @@ Phase 0 is complete. The engine runs end-to-end in a browser.
 | `web/src/tools/Merge` | Reference tool: `meta.ts` + `tool.tsx` — **copy this shape** |
 | `web/src/tools/{Split,ExtractPages,Rotate,Encrypt,RemovePassword}` | Lane B: five Phase 1 tool pages built on `EngineClient`, same staged-input → budget → call → error-switch → download shape. `Rotate`/`ExtractPages` skip the thumbnail picker (needs Lane D's render worker); `Split` offers per-part downloads instead of a ZIP (no zip dependency added — flag before adding one, per `docs/PARALLEL.md`) |
 | `web/src/dev/smoke.ts` | 10-check browser smoke test |
-| `signaling/` | **Does not exist yet.** Phase 3 |
+| `signaling/` | WebSocket signaling server (Go module, `cmd/signaling`): room create/join/relay for SDP+ICE via `internal/hub`, per-IP rate limiting via `internal/wsserver`, Crockford-base32 room codes via `internal/roomcode`. 27 Go tests pass, gofmt clean, vet clean. See `signaling/README.md` |
 
 48 Go tests pass. 10 browser checks pass. TypeScript is clean. Production build works.
 Compress has no browser check yet — `__smoke()` predates it.
