@@ -6,9 +6,11 @@ Every operation runs on your own machine — merge, split, compress, encrypt —
 account, no watermark and no server holding your documents. Works offline after the first
 load.
 
-> **Status: Phase 0 complete.** The Go→WebAssembly engine runs end-to-end in a browser
-> with eight operations, a native CLI, and a browser smoke test. Tool UIs beyond Merge
-> are not built yet. See [docs/STATE.md](docs/STATE.md).
+> **Status: Phases 0–2 built, nothing deployed yet.** The engine runs end-to-end in a
+> browser with nine operations including compress; tool pages exist for merge, split,
+> extract pages, rotate, encrypt and remove-password; the P2P signaling server is built
+> and tested. There is no live URL — see "Running it locally" below, and
+> [docs/STATE.md](docs/STATE.md) for exactly what's proven vs. still a guess.
 
 ---
 
@@ -36,6 +38,56 @@ It also means no CDN. Comparable tools load a dozen libraries from third-party C
 runtime, which leaks every visitor's IP and *which tool they opened*. We bundle
 everything, so "works offline" is a structural guarantee rather than a hope about cache
 state.
+
+## Running it locally
+
+There's no hosted deployment yet — this is how to run the app on your own machine.
+Prerequisites: Go 1.25+, Node 18+.
+
+```bash
+# 1. Engine tests (native, fast — proves the Go logic before touching Wasm)
+cd engine && go test ./...
+
+# 2. Build the Wasm engine. Required after every change under engine/ — Vite serves
+#    the output as a static asset and will not rebuild it for you.
+./scripts/build-wasm.sh
+
+# 3. Web app
+cd web
+npm install
+npm run dev
+```
+
+Open the printed `http://localhost:5173` URL. In the browser console, run:
+
+```js
+await __smoke()
+```
+
+That's the 12-check bridge smoke test (`web/src/dev/smoke.ts`) — it exercises merge,
+split, extract, rotate, encrypt/decrypt and compress through the actual Worker/Wasm
+path, which native Go tests can't reach. All checks should print `PASS`.
+
+Native CLI (same engine code, no browser):
+
+```bash
+cd engine && go run ./cmd/cli --help
+```
+
+Signaling server, for testing P2P share locally:
+
+```bash
+cd signaling && go run ./cmd/signaling
+```
+
+Before merging any change, run the full check from `docs/PARALLEL.md`:
+
+```bash
+cd engine && go test ./... && gofmt -l . && go vet ./...
+cd signaling && go test ./... && gofmt -l . && go vet ./...
+./scripts/build-wasm.sh
+cd web && npx tsc --noEmit && npm run build
+```
 
 ## Documentation
 

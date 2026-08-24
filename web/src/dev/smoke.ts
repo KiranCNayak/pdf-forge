@@ -99,6 +99,30 @@ export async function smoke(): Promise<string> {
   }
   check('userMessage present', !!userMessage, userMessage)
 
+  // Compress: the fixtures carry no images, so this exercises the structural
+  // pass and the result shape, not image shrinkage — that's covered by the Go
+  // fixtures in compress_test.go. What only a browser can prove is that a
+  // CompressResult with all its fields survives the worker round trip.
+  const preset = await engine.compress(await fixture('sample-a.pdf'), {
+    mode: 'preset',
+    preset: 'ebook',
+  })
+  check(
+    'compress (preset) returns a valid PDF',
+    preset.bytes.byteLength > 0 && (await engine.pageCount(preset.bytes.slice().buffer)) === 3,
+    `${preset.originalSize} -> ${preset.resultSize} bytes, fallback=${preset.fallback}`,
+  )
+
+  const target = await engine.compress(await fixture('sample-a.pdf'), {
+    mode: 'target',
+    targetBytes: 1,
+  })
+  check(
+    'compress (target, unreachable) reports reachedTarget: false',
+    target.reachedTarget === false,
+    `${target.resultSize} bytes`,
+  )
+
   const failed = results.filter((r) => !r.ok)
   const lines = [
     ...results.map((r) => `${r.ok ? 'PASS' : 'FAIL'}  ${r.name}${r.detail ? `  (${r.detail})` : ''}`),
