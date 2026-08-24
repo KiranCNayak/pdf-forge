@@ -1,5 +1,21 @@
-:root { color-scheme: light dark; --fg:#1a1a1a; --muted:#666; --bg:#fff; --line:#ddd; --err:#b00020; --warn:#8a6d00; }
-@media (prefers-color-scheme: dark) { :root { --fg:#e8e8e8; --muted:#9a9a9a; --bg:#161616; --line:#333; --err:#ff6b81; --warn:#e0b700; } }
+/* Minimalism & Swiss Style base: monochrome first, one accent used sparingly.
+   Green reads as "local / safe" here — every op this accent touches runs on
+   the user's machine, never a server. Chosen via the ui-ux-pro-max skill's
+   design-system search; see the design-system PR discussion for alternatives
+   considered (slate+blue SaaS palette, dark-only IDE palette). */
+:root {
+  color-scheme: light dark;
+  --fg:#1a1a1a; --muted:#666; --bg:#fff; --line:#ddd; --err:#b00020; --warn:#8a6d00;
+  --accent:#16a34a; --accent-fg:#fff; --accent-line:#16a34a;
+  --focus-ring: 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --fg:#e8e8e8; --muted:#9a9a9a; --bg:#161616; --line:#333; --err:#ff6b81; --warn:#e0b700;
+    --accent:#22c55e; --accent-fg:#0b1a10; --accent-line:#22c55e;
+  }
+}
+:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: 4px; }
 * { box-sizing: border-box; }
 body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.55 ui-sans-serif,system-ui,-apple-system,sans-serif; }
 main { max-width:44rem; margin:0 auto; padding:2rem 1.25rem 4rem; }
@@ -10,16 +26,47 @@ header { border-bottom:1px solid var(--line); padding-bottom:1rem; }
 .err { color:var(--err); }
 .warn { color:var(--warn); }
 code { font:.85em ui-monospace,SFMono-Regular,Menlo,monospace; background:color-mix(in srgb, var(--fg) 8%, transparent); padding:.1em .35em; border-radius:3px; }
-input[type=file] { display:block; margin:1rem 0; }
+/* FilePicker — dashed drop zone wrapping a real <input type=file>. The input
+   stays present and keyboard/screen-reader operable (visually hidden, not
+   display:none); drag-and-drop is an addition on top of it, not a
+   replacement — dragging alone must never be the only way in. */
+.file-picker {
+  position:relative; display:flex; flex-direction:column; align-items:center; gap:.35rem; text-align:center;
+  margin:1rem 0; padding:2rem 1rem; border:1.5px dashed var(--line); border-radius:10px;
+  cursor:pointer; color:var(--muted); transition: border-color 150ms, background-color 150ms, color 150ms;
+}
+.file-picker:hover { border-color:var(--fg); color:var(--fg); }
+.file-picker:has(input:focus-visible) { box-shadow:var(--focus-ring); border-color:var(--accent-line); }
+.file-picker--drag { border-color:var(--accent-line); background:color-mix(in srgb, var(--accent) 8%, transparent); color:var(--fg); }
+.file-picker__icon { color:inherit; }
+.file-picker__label { font-weight:500; color:var(--fg); }
+.file-picker__hint { font-size:.82rem; }
+.file-picker input[type=file] {
+  position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden;
+  clip:rect(0,0,0,0); white-space:nowrap; border:0;
+}
 ol.files { list-style:decimal; padding-left:1.5rem; margin:1rem 0; }
 ol.files li { display:grid; grid-template-columns:1fr auto; gap:.15rem 1rem; padding:.5rem 0; border-bottom:1px solid var(--line); }
 ol.files .name { font-weight:500; overflow-wrap:anywhere; }
 ol.files .controls { grid-row:1/3; display:flex; align-items:center; gap:.25rem; }
-button { font:inherit; padding:.4rem .85rem; border:1px solid var(--line); border-radius:6px; background:transparent; color:var(--fg); cursor:pointer; }
+button {
+  font:inherit; padding:.55rem .9rem; min-height:2.5rem; border:1px solid var(--line);
+  border-radius:6px; background:transparent; color:var(--fg); cursor:pointer;
+  transition: border-color 150ms, background-color 150ms, color 150ms;
+}
 button:hover:not(:disabled) { border-color:var(--fg); }
 button:disabled { opacity:.4; cursor:not-allowed; }
-.controls button { padding:.15rem .45rem; }
+.controls button { padding:.15rem .45rem; min-height:auto; }
 .actions { display:flex; gap:.5rem; margin:1rem 0; }
+/* The one primary CTA per screen — Merge/Split/Rotate/etc.'s main action button
+   and the post-run Download button. Everything else (Cancel, ↑/↓/✕) stays the
+   plain outline style so there's exactly one accent target to look for. */
+.actions button:first-child, .result button {
+  background:var(--accent); border-color:var(--accent-line); color:var(--accent-fg); font-weight:600;
+}
+.actions button:first-child:hover:not(:disabled), .result button:hover:not(:disabled) {
+  border-color:var(--accent-line); filter:brightness(1.08);
+}
 .result { margin-top:1rem; padding:1rem; border:1px solid var(--line); border-radius:8px; }
 
 /* shell layout */

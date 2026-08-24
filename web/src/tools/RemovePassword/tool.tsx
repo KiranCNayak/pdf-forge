@@ -8,6 +8,7 @@
 // re-pick, per the doc's edge-case table.
 
 import { useState } from 'react'
+import { FilePicker } from '../../components/FilePicker'
 import { engine } from '../../engine/EngineClient'
 import { EngineError } from '../../engine/protocol'
 import { checkBudget, deviceCaps, estimateEngineBytes, formatBytes } from '../../lib/device'
@@ -77,7 +78,7 @@ export default function RemovePasswordTool() {
 
   return (
     <>
-      <input type="file" accept="application/pdf" onChange={(e) => addFile(e.target.files)} />
+      <FilePicker onFiles={addFile} hint="One password-protected PDF" />
 
       {staged && (
         <p className="muted">

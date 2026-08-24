@@ -8,6 +8,7 @@
 // "few outputs" — and the single-part case is the common one anyway.
 
 import { useState } from 'react'
+import { FilePicker } from '../../components/FilePicker'
 import { engine } from '../../engine/EngineClient'
 import { EngineError } from '../../engine/protocol'
 import type { SplitPart } from '../../engine/protocol'
@@ -104,7 +105,7 @@ export default function SplitTool() {
 
   return (
     <>
-      <input type="file" accept="application/pdf" onChange={(e) => addFile(e.target.files)} />
+      <FilePicker onFiles={addFile} hint="One PDF, split into parts" />
 
       {staged && (
         <p className="muted">

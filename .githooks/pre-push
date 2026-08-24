@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+# Pre-push gate: the same checklist docs/PARALLEL.md and README.md ask you to run by
+# hand before merging, run automatically so a broken push can't happen by forgetting a
+# step. One hook, not one per language — this is a Go+TS monorepo, and a single script
+# calling each toolchain's own checker is simpler than wiring up per-language hook
+# frameworks for two ecosystems.
+#
+# Runs on `git push`. Skip in a pinch with `SKIP_HOOKS=1 git push` — that's an escape
+# hatch for emergencies, not a habit; CI (once it exists) still has the final word.
+set -euo pipefail
+
+if [ "${SKIP_HOOKS:-}" = "1" ]; then
+  echo "pre-push: SKIP_HOOKS=1, skipping checks"
+  exit 0
+fi
+
+cd "$(git rev-parse --show-toplevel)"
+
+step() { echo; echo "── $1 ──"; }
+
+# gofmt -l lists unformatted files but always exits 0, so the exit code alone can't
+# fail the hook — check its output instead.
+check_gofmt() {
+  local dir=$1 unformatted
+  unformatted=$(cd "$dir" && gofmt -l .)
+  if [ -n "$unformatted" ]; then
+    echo "gofmt: not formatted (run 'gofmt -w .' in $dir):" >&2
+    echo "$unformatted" >&2
+    return 1
+  fi
+}
+
+step "engine: go test, gofmt, go vet"
+(cd engine && go test ./... && go vet ./...)
+check_gofmt engine
+
+step "signaling: go test, gofmt, go vet"
+(cd signaling && go test ./... && go vet ./...)
+check_gofmt signaling
+
+step "engine: build wasm"
+./scripts/build-wasm.sh
+
+step "web: typecheck + build"
+(cd web && npx tsc --noEmit && npm run build)
+
+echo
+echo "pre-push: all checks passed"

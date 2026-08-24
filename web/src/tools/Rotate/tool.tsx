@@ -10,6 +10,7 @@
 // We only ever send one of 90 / 180 / 270, so there's nothing to normalise.
 
 import { useState } from 'react'
+import { FilePicker } from '../../components/FilePicker'
 import { engine } from '../../engine/EngineClient'
 import { EngineError } from '../../engine/protocol'
 import { checkBudget, deviceCaps, estimateEngineBytes, formatBytes } from '../../lib/device'
@@ -106,7 +107,7 @@ export default function RotateTool() {
 
   return (
     <>
-      <input type="file" accept="application/pdf" onChange={(e) => addFile(e.target.files)} />
+      <FilePicker onFiles={addFile} hint="One PDF, rotated 90°/180°/270°" />
 
       {staged && (
         <p className="muted">

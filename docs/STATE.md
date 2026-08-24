@@ -114,6 +114,31 @@ Each of these cost real time during Phase 0. All are guarded now; the guards are
 
 ---
 
+## Backlog
+
+**Plan docs.** Backlog items with an implementation plan more involved than a paragraph
+get one under `docs/plans/`. Delete the plan file in the same change that implements it
+— fold anything worth keeping into this file or the relevant `docs/tools/*.md` instead
+of leaving a stale plan sitting around once the code exists.
+
+- **Output filenames are hardcoded per tool** (`merged.pdf`, `rotated.pdf`,
+  `encrypted.pdf`, `extracted.pdf`, `unlocked.pdf` — Split already computes real
+  per-part names, so it's out of scope). Users doing repeat operations overwrite their
+  own downloads or have to rename files by hand afterward. Let them edit the name before
+  clicking Download, defaulting to today's hardcoded value. Plan:
+  `docs/plans/rename-output-file.md`.
+- **`FilePicker`'s drag-active state may not always clear on `dragleave`.**
+  `web/src/components/FilePicker.tsx` sets `file-picker--drag` on `onDragOver` and clears
+  it on `onDragLeave`, but the drop zone has child elements (icon, label, hidden input)
+  inside the `<label>`, so `dragleave` can fire while the pointer is still over a child
+  and the drag-over browser semantics get confused about what's "leaving" what. Caught
+  during manual QA in Chrome by dispatching a synthetic `dragover`/`dragleave` pair —
+  the `dragleave` did not reset the class. Needs a real drag-and-drop repro (synthetic
+  `DragEvent`s don't fully match browser drag semantics) before concluding whether this
+  is the same child-element bubbling issue every drag-and-drop zone hits, or something
+  specific to this component. If real, the standard fix is a drag-enter counter (increment
+  on `dragenter`, decrement on `dragleave`, only clear at zero) instead of a boolean.
+
 ## Next task
 
 **Phase 1 UI**, plus whatever else runs alongside it. Routing exists; the engine ops for

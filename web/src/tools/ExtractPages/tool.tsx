@@ -5,6 +5,7 @@
 // selection field only, same as the engine op itself expects.
 
 import { useState } from 'react'
+import { FilePicker } from '../../components/FilePicker'
 import { engine } from '../../engine/EngineClient'
 import { EngineError } from '../../engine/protocol'
 import { checkBudget, deviceCaps, estimateEngineBytes, formatBytes } from '../../lib/device'
@@ -86,7 +87,7 @@ export default function ExtractPagesTool() {
 
   return (
     <>
-      <input type="file" accept="application/pdf" onChange={(e) => addFile(e.target.files)} />
+      <FilePicker onFiles={addFile} hint="One PDF, pick the pages to keep" />
 
       {staged && (
         <p className="muted">

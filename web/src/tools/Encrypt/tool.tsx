@@ -8,6 +8,7 @@
 // escape hatches the doc treats as advanced-only, so V1 doesn't expose them.
 
 import { useState } from 'react'
+import { FilePicker } from '../../components/FilePicker'
 import { engine } from '../../engine/EngineClient'
 import { EngineError } from '../../engine/protocol'
 import { checkBudget, deviceCaps, estimateEngineBytes, formatBytes } from '../../lib/device'
@@ -85,7 +86,7 @@ export default function EncryptTool() {
 
   return (
     <>
-      <input type="file" accept="application/pdf" onChange={(e) => addFile(e.target.files)} />
+      <FilePicker onFiles={addFile} hint="One PDF, password-protected" />
 
       {staged && (
         <p className="muted">

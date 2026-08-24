@@ -148,6 +148,10 @@ Each worktree needs its own `npm install` (node_modules is not shared) and its o
 
 ## Before merging
 
+The pre-push hook (`./scripts/install-hooks.sh`, one-time setup — see README) runs the
+Go and web checks below automatically on `git push`. Run them by hand only to check
+before you're ready to push:
+
 ```bash
 cd engine && go test ./... && gofmt -l . && go vet ./...
 ```

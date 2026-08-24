@@ -39,6 +39,13 @@ runtime, which leaks every visitor's IP and *which tool they opened*. We bundle
 everything, so "works offline" is a structural guarantee rather than a hope about cache
 state.
 
+## Screenshots
+
+<p>
+  <img src="docs/assets/home.jpg" alt="Tool picker: six tools listed under Organize and Security" width="380">
+  <img src="docs/assets/merge-tool.jpg" alt="Merge PDFs tool page with the drag-and-drop file picker" width="380">
+</p>
+
 ## Running it locally
 
 There's no hosted deployment yet — this is how to run the app on your own machine.
@@ -56,6 +63,12 @@ cd engine && go test ./...
 cd web
 npm install
 npm run dev
+```
+
+One-time setup — install the pre-push hook (below) so a broken push can't happen:
+
+```bash
+./scripts/install-hooks.sh
 ```
 
 Open the printed `http://localhost:5173` URL. In the browser console, run:
@@ -80,7 +93,9 @@ Signaling server, for testing P2P share locally:
 cd signaling && go run ./cmd/signaling
 ```
 
-Before merging any change, run the full check from `docs/PARALLEL.md`:
+The pre-push hook (installed above) runs this full check automatically on `git push` —
+run it by hand only if you want the result before you're ready to push, or you skipped
+the one-time setup:
 
 ```bash
 cd engine && go test ./... && gofmt -l . && go vet ./...
@@ -88,6 +103,9 @@ cd signaling && go test ./... && gofmt -l . && go vet ./...
 ./scripts/build-wasm.sh
 cd web && npx tsc --noEmit && npm run build
 ```
+
+Emergency bypass: `SKIP_HOOKS=1 git push`. Not a habit — nothing else catches a broken
+push until CI exists.
 
 ## Documentation
 

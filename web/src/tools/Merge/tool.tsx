@@ -3,6 +3,7 @@
 // Every other tool should follow this shape. See docs/tools/merge.md.
 
 import { useState } from 'react'
+import { FilePicker } from '../../components/FilePicker'
 import { engine } from '../../engine/EngineClient'
 import { EngineError } from '../../engine/protocol'
 import { checkBudget, deviceCaps, estimateEngineBytes, formatBytes } from '../../lib/device'
@@ -83,7 +84,7 @@ export default function MergeTool() {
 
   return (
     <>
-      <input type="file" accept="application/pdf" multiple onChange={(e) => addFiles(e.target.files)} />
+      <FilePicker multiple onFiles={addFiles} hint="Two or more PDFs, merged in the order below" />
 
       {staged.length > 0 && (
         <ol className="files">

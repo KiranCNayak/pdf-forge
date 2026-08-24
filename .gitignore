@@ -23,6 +23,9 @@ benchmarks/tmp/
 .idea/
 .vscode/
 
+# Serena MCP's local project index/memory cache — not part of the app
+.serena/
+
 # Vite
 web/node_modules/
 web/dist/
