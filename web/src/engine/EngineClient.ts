@@ -193,6 +193,20 @@ export class EngineClient {
   organize(file: ArrayBuffer, opts: { pages: PageOp[]; password?: string }, onProgress?: ProgressFn) {
     return this.#call<Uint8Array>('organize', opts, [file], onProgress)
   }
+
+  /**
+   * Combines images (JPEG/PNG/TIFF/WebP) into one PDF, one page per image, in
+   * the order given. `pageSize: 'fit'` sizes each page to match its own
+   * image exactly; `'A4'`/`'Letter'` use a shared page size and `orientation`.
+   * See docs/tools/images-to-pdf.md.
+   */
+  imagesToPDF(
+    images: ArrayBuffer[],
+    opts: { pageSize: 'A4' | 'Letter' | 'fit'; orientation?: 'portrait' | 'landscape' },
+    onProgress?: ProgressFn,
+  ) {
+    return this.#call<Uint8Array>('imagesToPDF', opts, images, onProgress)
+  }
 }
 
 /** Shared instance. One engine worker per tab is the intended shape. */

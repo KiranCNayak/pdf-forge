@@ -25,6 +25,7 @@ export type OpName =
   | 'isEncrypted'
   | 'compress'
   | 'organize'
+  | 'imagesToPDF'
 
 export interface Request {
   id: string

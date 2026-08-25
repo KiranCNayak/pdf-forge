@@ -8,6 +8,33 @@ Combine JPG/PNG/WebP/TIFF images into a single PDF. Goes to **Go**, not JS, beca
 `api.ImportImages` accepts `[]io.Reader` directly and handles page sizing, orientation and
 format detection — work that JS libraries do worse and slower.
 
+## Status
+
+**Shipped** (`engine/internal/ops/imagestopdf.go`, `web/src/tools/ImagesToPdf/`): JPEG/PNG/
+TIFF/WebP → one PDF, one page per image, in the staged order. Page size "fit" (each page
+sized to its own image), "A4" or "Letter" with portrait/landscape orientation. HEIC is
+sniffed via its ISO-BMFF `ftyp` box and rejected with a clear message. Staged list is
+up/down-reorder + remove, same shape as `Merge` — no thumbnails, no per-image rotate.
+Verified in-browser: 3 real images (portrait PNG, landscape JPEG, square PNG) → correct
+3-page PDF confirmed by round-tripping through `PdfToImage` (right order, right aspect
+ratios, no distortion); A4 landscape output measured at exactly A4's dimensions swapped
+via `api.PageDims`; zero console errors. 11 Go tests, including one that asserts "fit"
+produces a page whose dimensions equal the source image's pixel dimensions exactly.
+
+**Deferred:**
+
+- "auto" orientation. The engine op's own doc comment explains why: pdfcpu's `Import`
+  config is shared across an entire `ImportImages` call, so true per-image orientation
+  needs one call per image (chaining output as input) instead of one call for the whole
+  batch. "Fit" gets auto-orientation for free and covers most of the same need.
+- Margin and scale controls — images fill as much of the page as their aspect ratio
+  allows, Center-anchored, with no separate margin knob.
+- The `>50MP` guard (`ERR_TOO_LARGE`) — would need the same up-front per-image pixel-
+  dimension read that the "auto" orientation cut avoids.
+- Thumbnails and per-image rotate in the staged list (matches `Merge`'s own precedent of
+  shipping without drag-reorder).
+- Phase 4's HEIC browser-side transcode — V1 just detects and refuses clearly.
+
 ## User flow
 
 1. Drop images (batch).
