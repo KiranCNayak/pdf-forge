@@ -24,6 +24,7 @@ export type OpName =
   | 'pageCount'
   | 'isEncrypted'
   | 'compress'
+  | 'organize'
 
 export interface Request {
   id: string
@@ -73,4 +74,15 @@ export interface CompressResult {
   imagesSkipped: number
   /** Keys: transparency | stencil | thumbnail | jpeg2000 | unsupportedType | alreadyLowDPI | noGain */
   skipReasons: Record<string, number>
+}
+
+/**
+ * One page in the FINAL document, mirroring engine/internal/ops.PageOp.
+ * `source` is a 1-based page number in the ORIGINAL document — the same
+ * source may repeat (duplicate) or be omitted (delete). `rotation` is a
+ * relative delta, same convention as rotate. See docs/tools/organize-pages.md.
+ */
+export interface PageOp {
+  source: number
+  rotation: number
 }

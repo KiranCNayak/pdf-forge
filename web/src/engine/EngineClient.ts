@@ -6,6 +6,7 @@ import {
   EngineError,
   type ErrorCode,
   type OpName,
+  type PageOp,
   type Request,
   type Response,
   type SplitPart,
@@ -182,6 +183,15 @@ export class EngineClient {
     onProgress?: ProgressFn,
   ) {
     return this.#call<CompressResult>('compress', opts, [file], onProgress)
+  }
+
+  /**
+   * Reorder, delete, duplicate and rotate pages in one call. `pages` gives the
+   * final page order — a source page omitted from it is deleted, one repeated
+   * is duplicated. docs/tools/organize-pages.md.
+   */
+  organize(file: ArrayBuffer, opts: { pages: PageOp[]; password?: string }, onProgress?: ProgressFn) {
+    return this.#call<Uint8Array>('organize', opts, [file], onProgress)
   }
 }
 

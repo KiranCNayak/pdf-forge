@@ -5,7 +5,13 @@
 // not optional — skipping it leaks the whole file for the tab's lifetime.
 
 export function downloadBytes(bytes: Uint8Array, filename: string, mime = 'application/pdf') {
-  const blob = new Blob([bytes as unknown as BlobPart], { type: mime })
+  downloadBlob(new Blob([bytes as unknown as BlobPart], { type: mime }), filename)
+}
+
+/** Same Safari fallback chain as downloadBytes, for callers that already have
+ * a Blob — e.g. PdfToZip's JSZip output — and would otherwise have to read it
+ * back into a Uint8Array just to hand it to downloadBytes. */
+export function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob)
 
   const a = document.createElement('a')
