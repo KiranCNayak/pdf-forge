@@ -5,6 +5,31 @@
 Send a file straight from one browser to another over a WebRTC data channel. No upload,
 no storage, no link expiry — because there is nothing anywhere to expire.
 
+## Status
+
+**Shipped** (`web/src/tools/P2PShare/tool.tsx`, `web/src/lib/p2p/`): send/receive UI,
+signaling via a real `signaling/` deployment (WS create/join/relay), trickle ICE with
+candidate buffering for the race against `setRemoteDescription`, chunked transfer with
+`bufferedAmountLowThreshold` backpressure, header/accept/reject/end control protocol,
+SHA-256 verification, honest ICE-failure and room-error messaging. Verified with two live
+browser tabs against a locally-run signaling server: full handshake, a transferred file
+confirmed byte-identical via `diff`, invalid-code and peer-declined paths, zero console
+errors.
+
+**Deferred:**
+
+- Password/encryption layer (PBKDF2-SHA256 → AES-256-GCM). Called out below as earning
+  its place given our signaling server — deferred rather than rushed, not cut for good.
+- IndexedDB assembly — V1 buffers the whole file in memory on both ends. See
+  `web/src/lib/p2p/transfer.ts`'s header for what a correct chunked version needs.
+- Multi-file sequential transfer (one file per transfer in V1).
+- gzip via `CompressionStream`.
+- The `BroadcastChannel` same-tab shortcut.
+- The manual-paste fallback for when the signaling server is unreachable.
+- Production deployment — V1 was only run against `go run ./cmd/signaling` locally, not
+  Fly.io. `VITE_SIGNALING_URL` (`web/.env.example`) needs a real URL before this ships.
+- QR code for the room code (text only, for now).
+
 ---
 
 ## Part 1 — How ihatepdf's version actually works
