@@ -11,15 +11,16 @@ no storage, no link expiry — because there is nothing anywhere to expire.
 signaling via a real `signaling/` deployment (WS create/join/relay), trickle ICE with
 candidate buffering for the race against `setRemoteDescription`, chunked transfer with
 `bufferedAmountLowThreshold` backpressure, header/accept/reject/end control protocol,
-SHA-256 verification, honest ICE-failure and room-error messaging. Verified with two live
-browser tabs against a locally-run signaling server: full handshake, a transferred file
-confirmed byte-identical via `diff`, invalid-code and peer-declined paths, zero console
-errors.
+SHA-256 verification, honest ICE-failure and room-error messaging, and the optional
+password layer (`p2p/crypto.ts`: PBKDF2-SHA256 → AES-256-GCM, same envelope as ihatepdf's
+own construction). Verified with two live browser tabs against a locally-run signaling
+server: full handshake, a transferred file confirmed byte-identical via `diff` both
+unencrypted and through a full encrypt/decrypt round trip, a wrong password correctly
+reported as "Wrong password." rather than "file corrupt", invalid-code and peer-declined
+paths, zero console errors throughout.
 
 **Deferred:**
 
-- Password/encryption layer (PBKDF2-SHA256 → AES-256-GCM). Called out below as earning
-  its place given our signaling server — deferred rather than rushed, not cut for good.
 - IndexedDB assembly — V1 buffers the whole file in memory on both ends. See
   `web/src/lib/p2p/transfer.ts`'s header for what a correct chunked version needs.
 - Multi-file sequential transfer (one file per transfer in V1).

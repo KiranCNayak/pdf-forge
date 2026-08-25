@@ -39,11 +39,16 @@ export interface FileHeader {
   name: string
   size: number
   mime: string
-  /** SHA-256 of the plaintext file, hex-encoded. Verified by the receiver
-   * once every chunk has arrived — see docs/tools/p2p-share.md's edge case
-   * table: report "wrong password"/"corrupt" as distinguishable outcomes,
-   * not a shrug. */
+  /** SHA-256 of the PLAINTEXT file, hex-encoded — computed before encryption
+   * on the sender side, checked after decryption on the receiver side, so it
+   * verifies the whole round trip rather than just the ciphertext arriving
+   * intact. See docs/tools/p2p-share.md's edge case table: report "wrong
+   * password"/"corrupt" as distinguishable outcomes, not a shrug. */
   sha256: string
+  /** True if the bytes on the wire are the AES-GCM envelope from p2p/crypto.ts,
+   * not the plaintext file. The receiver needs a password before it can even
+   * attempt decryption, let alone verify sha256. */
+  encrypted: boolean
 }
 
 export type ChannelControl =

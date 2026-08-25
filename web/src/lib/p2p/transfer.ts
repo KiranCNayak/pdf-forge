@@ -12,13 +12,17 @@
 //    ArrayBuffers into an array and Blob()s them at the end. Correct and
 //    fully verified for realistic file sizes; revisit if huge transfers turn
 //    out to matter.
-//  - No PBKDF2/AES-GCM password layer yet, despite the doc calling it out as
-//    earning its place specifically because we introduced a signaling server.
-//    Deferred rather than rushed — a wrong crypto implementation is worse
-//    than an honest gap. Transport is still DTLS-encrypted regardless.
 //  - No gzip via CompressionStream, no pause/resume control frames beyond
 //    cancel, single file per transfer (not sequential multi-file).
+//
+// The optional password layer (p2p/crypto.ts) IS implemented: when set, the
+// sender encrypts the whole buffer before chunking, and the receiver
+// decrypts the whole assembled buffer before verifying sha256 — encryption
+// is a content-level concern applied once, chunking is a transport-level
+// concern applied to whatever bytes result, and the two don't need to know
+// about each other beyond the header's `encrypted` flag.
 
+import { decryptBytes, encryptBytes, WrongPasswordError } from './crypto'
 import type { ChannelControl, FileHeader } from './protocol'
 
 const CHUNK_SIZE = 64 * 1024
@@ -69,22 +73,29 @@ export class TransferCancelledError extends Error {
 /** Sender side: sends a header frame, waits for accept/reject, then streams
  * the file in chunks. Rejects with TransferRejectedError/CancelledError on
  * those specific outcomes so callers can tell them apart from a network
- * failure. */
+ * failure. If `password` is set, the whole file is encrypted (p2p/crypto.ts)
+ * before chunking — the header's declared sha256 is always of the PLAINTEXT,
+ * computed before encryption, so it verifies the full round trip including
+ * decryption on the other end. */
 export async function sendFile(
   dc: RTCDataChannel,
   file: File,
   onProgress: (sent: number, total: number) => void,
   isCancelled: () => boolean,
+  password?: string,
 ): Promise<void> {
   dc.bufferedAmountLowThreshold = BUFFERED_AMOUNT_LOW_THRESHOLD
 
-  const buffer = await file.arrayBuffer()
-  const sha256 = await sha256Hex(buffer)
+  const plaintext = await file.arrayBuffer()
+  const sha256 = await sha256Hex(plaintext)
+  const wireBuffer = password ? await encryptBytes(plaintext, password) : plaintext
+
   const header: FileHeader = {
     name: file.name,
     size: file.size,
     mime: file.type || 'application/octet-stream',
     sha256,
+    encrypted: !!password,
   }
   sendControl(dc, { type: 'header', header })
 
@@ -101,15 +112,15 @@ export async function sendFile(
   })
   if (!accepted) throw new TransferRejectedError()
 
-  for (let offset = 0; offset < buffer.byteLength; offset += CHUNK_SIZE) {
+  for (let offset = 0; offset < wireBuffer.byteLength; offset += CHUNK_SIZE) {
     if (isCancelled()) {
       sendControl(dc, { type: 'cancel' })
       throw new TransferCancelledError()
     }
     await waitForDrain(dc)
-    const chunk = buffer.slice(offset, Math.min(offset + CHUNK_SIZE, buffer.byteLength))
+    const chunk = wireBuffer.slice(offset, Math.min(offset + CHUNK_SIZE, wireBuffer.byteLength))
     dc.send(chunk)
-    onProgress(Math.min(offset + CHUNK_SIZE, buffer.byteLength), buffer.byteLength)
+    onProgress(Math.min(offset + CHUNK_SIZE, wireBuffer.byteLength), wireBuffer.byteLength)
   }
   sendControl(dc, { type: 'end' })
 }
@@ -117,21 +128,34 @@ export async function sendFile(
 export interface ReceivedFile {
   blob: Blob
   header: FileHeader
-  /** False means the SHA-256 the sender declared doesn't match what arrived
-   * — a hard failure per the doc, not a warning. */
+  /** False means the SHA-256 the sender declared doesn't match the
+   * (decrypted, if applicable) plaintext that arrived — a hard failure per
+   * the doc, not a warning. */
   verified: boolean
 }
 
+export interface OfferDecision {
+  accept: boolean
+  /** Required when the header says `encrypted: true`; ignored otherwise. */
+  password?: string
+}
+
 /** Receiver side: waits for a header frame, hands it to `onOffer` for the
- * caller to accept/reject (returns a boolean), then receives chunks with
- * progress until 'end' or 'cancel'. */
+ * caller to accept/reject (and supply a password, if the header says the
+ * file is encrypted), then receives chunks with progress until 'end' or
+ * 'cancel'. Decryption happens once, after every chunk has arrived — GCM's
+ * auth tag covers the whole ciphertext, so there's no way to verify a
+ * password against a partial transfer. Rejects with WrongPasswordError
+ * (distinguishable from a generic failure) if decryption's auth check
+ * fails. */
 export function receiveFile(
   dc: RTCDataChannel,
-  onOffer: (header: FileHeader) => Promise<boolean>,
+  onOffer: (header: FileHeader) => Promise<OfferDecision>,
   onProgress: (received: number, total: number) => void,
 ): Promise<ReceivedFile> {
   return new Promise((resolve, reject) => {
     let header: FileHeader | null = null
+    let password: string | undefined
     const chunks: ArrayBuffer[] = []
     let received = 0
 
@@ -140,9 +164,10 @@ export function receiveFile(
         const msg = JSON.parse(e.data) as ChannelControl
         if (msg.type === 'header') {
           header = msg.header
-          void onOffer(msg.header).then((accept) => {
-            sendControl(dc, { type: accept ? 'accept' : 'reject' })
-            if (!accept) {
+          void onOffer(msg.header).then((decision) => {
+            password = decision.password
+            sendControl(dc, { type: decision.accept ? 'accept' : 'reject' })
+            if (!decision.accept) {
               dc.removeEventListener('message', onMessage)
               reject(new TransferRejectedError())
             }
@@ -153,11 +178,18 @@ export function receiveFile(
             reject(new Error('Transfer ended before a file header arrived.'))
             return
           }
-          const blob = new Blob(chunks, { type: header.mime })
-          void blob.arrayBuffer().then(async (buf) => {
-            const actual = await sha256Hex(buf)
-            resolve({ blob, header: header as FileHeader, verified: actual === (header as FileHeader).sha256 })
-          })
+          const h = header
+          void (async () => {
+            try {
+              const wireBuffer = await new Blob(chunks).arrayBuffer()
+              const plaintext = h.encrypted ? await decryptBytes(wireBuffer, password ?? '') : wireBuffer
+              const actual = await sha256Hex(plaintext)
+              const blob = new Blob([plaintext], { type: h.mime })
+              resolve({ blob, header: h, verified: actual === h.sha256 })
+            } catch (err) {
+              reject(err instanceof WrongPasswordError ? err : new Error('Could not assemble the received file.'))
+            }
+          })()
         } else if (msg.type === 'cancel') {
           dc.removeEventListener('message', onMessage)
           reject(new TransferCancelledError())

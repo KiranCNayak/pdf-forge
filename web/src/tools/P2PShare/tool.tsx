@@ -8,10 +8,17 @@
 // This file is UI + choreography only. The actual mechanics live in
 // web/src/lib/p2p/: SignalingClient (the WebSocket), PeerLink (RTCPeerConnection
 // + trickle ICE), transfer.ts (chunking, backpressure, the header/accept/
-// reject/end control protocol). See transfer.ts's header comment for the
-// specific V1 departures from the doc (whole-file-in-memory rather than
-// IndexedDB, no password/encryption layer yet) — both documented there
-// rather than silently cut.
+// reject/end control protocol, and the optional password layer from
+// crypto.ts). See transfer.ts's header comment for the specific V1
+// departures still left from the doc (whole-file-in-memory rather than
+// IndexedDB, single file per transfer) — documented there, not silently cut.
+//
+// The password field is optional and off by default. Per docs/tools/
+// p2p-share.md, it defends against a compromised signaling server, not
+// passive eavesdropping (DTLS already covers that) — and only if the
+// password travels to the other person by a channel OTHER than the one
+// carrying the room code. Neither this file nor any other can enforce that;
+// it's a one-line reminder in the UI at most.
 //
 // No TURN, STUN only: symmetric NAT and strict firewalls will fail outright
 // for some fraction of attempts. ICE state 'failed' is reported with the
@@ -20,11 +27,18 @@
 import { useRef, useState } from 'react'
 import { formatBytes } from '../../lib/device'
 import { downloadBlob } from '../../lib/download'
+import { WrongPasswordError } from '../../lib/p2p/crypto'
 import { signalingUrl } from '../../lib/p2p/config'
 import { PeerLink } from '../../lib/p2p/PeerLink'
 import type { FileHeader, SignalErrorCode } from '../../lib/p2p/protocol'
 import { SignalingClient } from '../../lib/p2p/SignalingClient'
-import { receiveFile, sendFile, TransferCancelledError, TransferRejectedError } from '../../lib/p2p/transfer'
+import {
+  receiveFile,
+  sendFile,
+  TransferCancelledError,
+  TransferRejectedError,
+  type OfferDecision,
+} from '../../lib/p2p/transfer'
 
 const SIGNAL_ERROR_MESSAGES: Record<SignalErrorCode, string> = {
   room_not_found: "That code doesn't match a live room. Check it and try again.",
@@ -77,6 +91,7 @@ export default function P2PShareTool() {
 
 function SendPanel({ onReset }: { onReset: () => void }) {
   const [file, setFile] = useState<File | null>(null)
+  const [password, setPassword] = useState('')
   const [status, setStatus] = useState<SendStatus>({ kind: 'idle' })
   const signaling = useRef<SignalingClient | null>(null)
   const link = useRef<PeerLink | null>(null)
@@ -143,6 +158,7 @@ function SendPanel({ onReset }: { onReset: () => void }) {
               file,
               (sent, total) => setStatus({ kind: 'transferring', sent, total }),
               () => cancelled.current,
+              password || undefined,
             )
               .then(() => setStatus({ kind: 'done' }))
               .catch((err: unknown) => {
@@ -179,6 +195,24 @@ function SendPanel({ onReset }: { onReset: () => void }) {
           {file && (
             <p className="muted">
               {file.name} · {formatBytes(file.size)}
+            </p>
+          )}
+          <p>
+            <label>
+              Password (optional)
+              <br />
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Leave blank for none"
+              />
+            </label>
+          </p>
+          {password && (
+            <p className="muted">
+              Share this password with them a different way than the room code — sending both together defeats the
+              point.
             </p>
           )}
           <div className="actions">
@@ -236,7 +270,8 @@ function ReceivePanel({ onReset }: { onReset: () => void }) {
   const [status, setStatus] = useState<ReceiveStatus>({ kind: 'idle' })
   const signaling = useRef<SignalingClient | null>(null)
   const link = useRef<PeerLink | null>(null)
-  const decision = useRef<((accept: boolean) => void) | null>(null)
+  const decision = useRef<((decision: OfferDecision) => void) | null>(null)
+  const [incomingPassword, setIncomingPassword] = useState('')
 
   function cleanup() {
     link.current?.close()
@@ -284,7 +319,7 @@ function ReceivePanel({ onReset }: { onReset: () => void }) {
         void receiveFile(
           dc,
           (header) =>
-            new Promise<boolean>((resolve) => {
+            new Promise<OfferDecision>((resolve) => {
               decision.current = resolve
               setStatus({ kind: 'incoming', header })
             }),
@@ -294,6 +329,7 @@ function ReceivePanel({ onReset }: { onReset: () => void }) {
           .catch((err: unknown) => {
             if (err instanceof TransferRejectedError) setStatus({ kind: 'idle' })
             else if (err instanceof TransferCancelledError) setStatus({ kind: 'error', message: 'The sender cancelled.' })
+            else if (err instanceof WrongPasswordError) setStatus({ kind: 'error', message: 'Wrong password.' })
             else setStatus({ kind: 'error', message: 'Transfer failed.' })
           })
       }
@@ -302,8 +338,9 @@ function ReceivePanel({ onReset }: { onReset: () => void }) {
   }
 
   function respond(accept: boolean) {
-    decision.current?.(accept)
+    decision.current?.({ accept, password: incomingPassword || undefined })
     decision.current = null
+    setIncomingPassword('')
   }
 
   function reset() {
@@ -347,8 +384,24 @@ function ReceivePanel({ onReset }: { onReset: () => void }) {
           <p>
             Incoming: {status.header.name} · {formatBytes(status.header.size)}
           </p>
+          {status.header.encrypted && (
+            <p>
+              <label>
+                This file is password protected.
+                <br />
+                <input
+                  type="password"
+                  value={incomingPassword}
+                  onChange={(e) => setIncomingPassword(e.target.value)}
+                  placeholder="Password"
+                />
+              </label>
+            </p>
+          )}
           <div className="actions">
-            <button onClick={() => respond(true)}>Accept</button>
+            <button onClick={() => respond(true)} disabled={status.header.encrypted && !incomingPassword}>
+              Accept
+            </button>
             <button onClick={() => respond(false)}>Decline</button>
           </div>
         </div>
