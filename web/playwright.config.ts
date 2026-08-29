@@ -22,10 +22,22 @@ export default defineConfig({
     trace: 'retain-on-failure',
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
-  webServer: {
-    command: 'npm run dev -- --port 5173 --strictPort',
-    url: 'http://localhost:5173',
-    reuseExistingServer: !process.env.CI,
-    timeout: 30_000,
-  },
+  webServer: [
+    {
+      command: 'npm run dev -- --port 5173 --strictPort',
+      url: 'http://localhost:5173',
+      reuseExistingServer: !process.env.CI,
+      timeout: 30_000,
+    },
+    {
+      // p2p-share.spec.ts needs a live signaling server — VITE_SIGNALING_URL
+      // defaults to this exact address (web/.env.example). `go run` recompiles
+      // on every start, which the 30s timeout below allows for.
+      command: 'go run ./cmd/signaling',
+      cwd: '../signaling',
+      port: 8080,
+      reuseExistingServer: !process.env.CI,
+      timeout: 30_000,
+    },
+  ],
 })
