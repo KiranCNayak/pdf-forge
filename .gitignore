@@ -30,3 +30,9 @@ benchmarks/tmp/
 web/node_modules/
 web/dist/
 web/tsconfig.tsbuildinfo
+
+# Playwright
+web/test-results/
+web/playwright-report/
+web/blob-report/
+web/playwright/.cache/

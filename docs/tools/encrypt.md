@@ -15,6 +15,19 @@ checkboxes (print, modify contents, copy/extract, annotate/fill forms, assemble)
 AES-256, a "no recovery" acknowledgment checkbox gating submission once an open password
 is set.
 
+Two real bugs here were only caught once a Playwright e2e test drove the actual UI (see
+`web/e2e/encrypt-remove-password.spec.ts` and `docs/STATE.md`'s "Things that will bite
+you" #9–10), invisible to 57+ native Go tests because none of them round-trip
+`EncryptParams` through JSON the way the browser bridge does:
+
+- `EncryptParams.Permissions` was `int16`; the UI's own `PERMISSIONS_NONE` base value
+  overflows that range, so every UI-driven encrypt call failed `json.Unmarshal`. Now
+  `int32`.
+- Encrypting with only an open password failed outright — pdfcpu requires a non-empty
+  owner password, but this field's own placeholder promises "leave blank to reuse the
+  open password." `internal/ops/security.go`'s `Encrypt` now defaults `OwnerPW` to
+  `UserPW` when blank, so the placeholder is actually true.
+
 **Deferred:**
 
 - 128-bit / 40-bit key length — `EncryptParams.KeyLength` supports it, but the UI locks

@@ -33,9 +33,11 @@ Phase 0 is complete. The engine runs end-to-end in a browser.
 | `web/src/tools/P2PShare`                                           | Phase 3, first tool built on `signaling/`: `web/src/lib/p2p/` (`SignalingClient` — WS wrapper, push-driven not request/response like the other two clients; `PeerLink` — RTCPeerConnection + trickle ICE, buffers ICE candidates that race ahead of `setRemoteDescription`; `transfer.ts` — header/accept/reject/end control protocol over the data channel, chunked sending with `bufferedAmountLowThreshold` backpressure, SHA-256 verification; `crypto.ts` — optional PBKDF2-SHA256 → AES-256-GCM password layer, same envelope as ihatepdf's own construction). **V1 departures, documented in `transfer.ts`'s header, not silent:** whole file in memory rather than IndexedDB; single file per transfer. Verified with two real browser tabs against a locally-run signaling server: full offer/answer/ICE handshake, a transferred file confirmed **byte-identical** to the original via `diff` both unencrypted and through a full encrypt/decrypt round trip, wrong password correctly reported as "Wrong password." not "file corrupt", invalid-room-code and peer-declined error paths both correctly messaged, zero console errors throughout |
 | `web/src/tools/ImagesToPdf`                                        | Phase 2's last catalogued tool page: JPEG/PNG/TIFF/WebP → one PDF, one page per image, via the new `imagesToPDF` Go op — turned out to need no render-worker involvement at all. Staged list follows Merge's up/down-reorder shape (no thumbnails — see the file header for why). "Fit to image" / A4 / Letter page size, portrait/landscape orientation (A4/Letter only; no per-image "auto" in V1 — see the engine op's doc comment on why that needs per-image dimension decoding this pass skips). HEIC is detected via an ISO-BMFF `ftyp` box sniff and rejected with a clear message, per the doc's explicit V1 scope. Verified in-browser: 3 real JPEG/PNG images (portrait/landscape/square) → 3-page PDF, page order and aspect ratios confirmed correct by round-tripping through `PdfToImage`; A4 landscape output confirmed 842×595pt (exactly A4 portrait's dimensions swapped) via `api.PageDims`; zero console errors                                                                                                                                                                                                                       |
 | `web/src/dev/smoke.ts`                                             | 12-check browser smoke test, including compress (preset round trip + unreachable target reports `reachedTarget: false`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `web/e2e/`                                                         | Playwright end-to-end tests: real Chromium, real Vite dev server, real `engine.wasm` — the layer above the browser smoke test, covering UI wiring (file pickers, staged-list reorder, option forms, downloads) that no unit test touches. 9 specs: home/navigation (every tool route renders with no console error), `merge` (stage two PDFs, reorder, download), `rotate` (angle + page-selection gating), `images-to-pdf` (staged images, page-size/orientation form, FilePicker label regression guard), and an `encrypt` → `remove-password` round trip across two tools. Caught two real bugs on first run — see "Things that will bite you" below. `npm run test:e2e`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | `signaling/`                                                       | WebSocket signaling server (Go module, `cmd/signaling`): room create/join/relay for SDP+ICE via `internal/hub`, per-IP rate limiting via `internal/wsserver`, Crockford-base32 room codes via `internal/roomcode`. 27 Go tests pass, gofmt clean, vet clean. Now consumed by `web/src/tools/P2PShare`. See `signaling/README.md`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 
-57 Go tests pass. TypeScript is clean. Production build works. `__smoke()` now has 12
+70 Go tests pass. TypeScript is clean. Production build works. 9 Playwright e2e specs
+pass (`web/e2e/`, `npm run test:e2e`). `__smoke()` now has 12
 checks including compress, but has not actually been run in a browser since the compress
 checks were added — the Chrome extension wasn't available in the environment that wrote
 this. Run `await __smoke()` yourself before trusting the count.
@@ -86,6 +88,14 @@ Then open http://localhost:5173 and run `await __smoke()` in the console.
 cd engine && go run ./cmd/cli info ../web/public/fixtures/sample-a.pdf
 ```
 
+```bash
+cd web && npm run test:e2e
+```
+
+Playwright drives real Chromium against the Vite dev server (starts one itself if none is
+running on :5173) and the already-built `engine.wasm` — build it first if missing or stale.
+`npm run test:e2e:ui` opens Playwright's UI mode for debugging a single spec.
+
 **Rebuild the Wasm after any change under `engine/`.** Vite serves
 `web/public/wasm/engine.wasm` as a static asset and will not rebuild it for you — this
 is the single easiest way to spend an hour debugging a change that was never compiled.
@@ -118,6 +128,24 @@ Each of these cost real time during Phase 0. All are guarded now; the guards are
    Compress replaces the xref entry itself instead — `docs/LLD.md` §3.1 explains why that
    is safe. Also: extracting an image mutates its stream dict, so the context you plan on
    must never be the context you write.
+9. **`EncryptParams.Permissions` was `int16`, and every real encrypt call was broken.**
+   The UI's own `PERMISSIONS_NONE` base value (`0xf0c3` = 61635, ISO-32000 Table 22's
+   reserved bits forced to 1) exceeds int16's range, so `json.Unmarshal` silently failed
+   on every UI-driven `encrypt` call. Invisible to every native Go test, because they all
+   construct `EncryptParams{}` as a Go struct literal, bypassing JSON entirely. Now
+   `int32`, matching `model.PermissionFlags`'s own underlying `int`. Caught by the
+   Playwright suite's first real run, not by 57 passing Go tests — see `web/e2e/`'s row
+   above and `TestEncryptParamsPermissionsSurvivesJSONRoundTrip`.
+10. **Encrypting with only a user password used to fail.** pdfcpu requires a non-empty
+    owner password outright ("please provide owner password and optional user password"),
+    but the Encrypt UI's own placeholder text promises "leave blank to reuse the open
+    password" on that field. `Encrypt` (`internal/ops/security.go`) now defaults
+    `OwnerPW` to `UserPW` when blank, so the UI's placeholder is actually true. The
+    resulting pdfcpu error also happened to contain the word "password", so
+    `bridge.Classify` misread it as `ERR_ENCRYPTED` ("this file is already encrypted")
+    rather than surfacing the real cause — worth remembering next time a `Classify`
+    substring match looks too broad. Also caught by the Playwright suite; see
+    `TestEncryptWithOnlyUserPasswordSucceeds`.
 
 ---
 
@@ -205,6 +233,19 @@ split,rotate,encrypt,remove-password,extract-pages}.md` — several describe thu
   pickers, drag-reorder, or ZIP downloads that Phase 1 shipped without (documented in
   each `tool.tsx`'s header comment). Decide per-tool whether to build the richer UX now,
   or update the doc to match what shipped.
+
+**Playwright end-to-end tests now exist** (`web/e2e/`, `npm run test:e2e`) — real
+Chromium against a real Vite dev server and the already-built `engine.wasm`, covering UI
+interactions no other test layer reaches: file-picker uploads, staged-list reorder,
+option forms, and the download flow, including a two-tool `encrypt` → `remove-password`
+round trip. The very first run caught two real, previously-shipped bugs in Encrypt — see
+"Things that will bite you" items 9 and 10 — which is the whole argument for having this
+layer at all: 57 native Go tests and a clean TypeScript build both missed them because
+neither exercises the JSON-over-the-bridge parameter path the real UI actually uses.
+Currently 9 specs across `merge`, `rotate`, `images-to-pdf`, `encrypt`/`remove-password`,
+and site-wide navigation; extending coverage to the remaining tools (`split`,
+`extract-pages`, `compress`, `pdf-to-image`, `extract-text`, `pdf-to-zip`,
+`organize-pages`, `p2p-share`) is open, not started.
 
 **This work parallelises.** `docs/PARALLEL.md` defines four non-overlapping lanes —
 engine ops, tool UIs, signaling server, render pipeline — and the worktree flow for

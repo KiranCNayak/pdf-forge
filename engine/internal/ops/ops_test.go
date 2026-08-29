@@ -1,6 +1,8 @@
 package ops
 
 import (
+	"encoding/json"
+	"fmt"
 	"testing"
 
 	"github.com/kirancnayak/pdf-forge/engine/internal/bridge"
@@ -243,6 +245,42 @@ func TestEncryptAcceptsUnicodePasswords(t *testing.T) {
 				t.Fatalf("decrypt: %v", err)
 			}
 		})
+	}
+}
+
+// TestEncryptParamsPermissionsSurvivesJSONRoundTrip catches a bug an e2e test
+// found and every native test here missed: every other test in this file
+// constructs EncryptParams as a Go struct literal, bypassing the JSON layer
+// entirely. The real UI's PERMISSIONS_NONE base value (0xf0c3 = 61635, with
+// several ISO-32000 Table 22 reserved bits forced to 1) exceeds int16's
+// range, so json.Unmarshal silently failed on every real encrypt call once
+// the UI shipped — Permissions was int16 until this test.
+func TestEncryptParamsPermissionsSurvivesJSONRoundTrip(t *testing.T) {
+	const uiPermissionsNone = 0xf0c3 // web/src/tools/Encrypt/tool.tsx's PERMISSIONS_NONE
+	raw := fmt.Sprintf(`{"userPW":"x","ownerPW":"x","keyLength":256,"permissions":%d}`, uiPermissionsNone)
+	var p EncryptParams
+	if err := json.Unmarshal([]byte(raw), &p); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if p.Permissions != uiPermissionsNone {
+		t.Fatalf("permissions = %d, want %d", p.Permissions, uiPermissionsNone)
+	}
+}
+
+// TestEncryptWithOnlyUserPasswordSucceeds is the exact scenario the UI's own
+// placeholder text invites ("Leave blank to reuse the open password" on the
+// owner-password field) and the exact one an e2e test caught failing:
+// pdfcpu refuses to encrypt with an empty owner password outright, and the
+// resulting error message contains "password", which bridge.Classify then
+// misreads as ERR_ENCRYPTED rather than a real failure. Encrypt must fall
+// back OwnerPW to UserPW when OwnerPW is blank.
+func TestEncryptWithOnlyUserPasswordSucceeds(t *testing.T) {
+	enc, err := Encrypt(makePDF(t, 1), EncryptParams{UserPW: "openme", Permissions: 0xf0c3}, nil)
+	if err != nil {
+		t.Fatalf("encrypt: %v", err)
+	}
+	if _, err := Decrypt(enc, DecryptParams{Password: "openme"}, nil); err != nil {
+		t.Fatalf("decrypt with the user password: %v", err)
 	}
 }
 

@@ -56,9 +56,14 @@ type EncryptParams struct {
 	// KeyLength is 256 (default), 128, or 40. Anything below 256 is a
 	// compatibility escape hatch for ancient readers, not a real choice.
 	KeyLength int `json:"keyLength"`
-	// Permissions is an ISO-32000 Table 22 bitfield. Zero means "no permissions
-	// granted", which is a valid and quite restrictive choice.
-	Permissions int16 `json:"permissions"`
+	// Permissions is an ISO-32000 Table 22 bitfield. Several of the reserved
+	// bits (ISO-32000 Table 22's own "must be 1") push the base "no
+	// permissions" value (PERMISSIONS_NONE in the UI) past int16's range —
+	// this was int16 until an e2e test caught every real encrypt call
+	// failing json.Unmarshal with "cannot unmarshal number 61635 into ...
+	// int16". model.PermissionFlags itself is a plain `int`; match it here
+	// rather than re-narrowing.
+	Permissions int32 `json:"permissions"`
 }
 
 // Encrypt applies AES password protection.
@@ -87,9 +92,21 @@ func Encrypt(input []byte, p EncryptParams, prog Progress) ([]byte, error) {
 		return nil, bridge.Errf(bridge.CodeInvalid, "key length must be 40, 128 or 256, got %d", keyLen)
 	}
 
+	// pdfcpu requires an owner password outright — encrypting with only a user
+	// password fails with "please provide owner password and optional user
+	// password", a pdfcpu error whose message happens to contain "password"
+	// and so gets misclassified as ERR_ENCRYPTED (bridge.Classify) instead of
+	// surfacing as the real cause. The UI's own placeholder text promises
+	// "leave blank to reuse the open password" (Encrypt/tool.tsx) — honor
+	// that here rather than in JS, so every caller of this op gets it free.
+	ownerPW := p.OwnerPW
+	if ownerPW == "" {
+		ownerPW = p.UserPW
+	}
+
 	c := conf()
 	c.UserPW = p.UserPW
-	c.OwnerPW = p.OwnerPW
+	c.OwnerPW = ownerPW
 	// Always AES. pdfcpu can emit RC4 when this is false; RC4 is broken and we
 	// never expose it.
 	c.EncryptUsingAES = true
