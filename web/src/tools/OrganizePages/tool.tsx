@@ -267,6 +267,7 @@ export default function OrganizePagesTool() {
             This file is password protected.{' '}
             <input
               type="password"
+              autoComplete="off"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Password"

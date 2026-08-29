@@ -110,6 +110,7 @@ export default function EncryptTool() {
               <br />
               <input
                 type="password"
+                autoComplete="off"
                 value={userPW}
                 onChange={(e) => setUserPW(e.target.value)}
                 placeholder="Leave blank for no open password"
@@ -123,6 +124,7 @@ export default function EncryptTool() {
               <br />
               <input
                 type="password"
+                autoComplete="off"
                 value={ownerPW}
                 onChange={(e) => setOwnerPW(e.target.value)}
                 placeholder="Leave blank to reuse the open password"

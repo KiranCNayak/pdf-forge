@@ -84,8 +84,8 @@ export default function P2PShareTool() {
     <>
       {role === null && (
         <div className="actions">
-          <button onClick={() => setRole('send')}>Send a file</button>
-          <button onClick={() => setRole('receive')}>Receive a file</button>
+          <button onClick={() => setRole('send')}>Send a File</button>
+          <button onClick={() => setRole('receive')}>Receive a File</button>
         </div>
       )}
       {role === 'send' && <SendPanel onReset={() => setRole(null)} />}
@@ -228,6 +228,7 @@ function SendPanel({ onReset }: { onReset: () => void }) {
               <br />
               <input
                 type="password"
+                autoComplete="off"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Leave blank for none"
@@ -242,7 +243,7 @@ function SendPanel({ onReset }: { onReset: () => void }) {
           )}
           <div className="actions">
             <button onClick={start} disabled={files.length === 0}>
-              Create room
+              Create Room
             </button>
             <button onClick={onReset}>Back</button>
           </div>
@@ -284,14 +285,14 @@ function SendPanel({ onReset }: { onReset: () => void }) {
           <p>
             Sent · {files.length} file{files.length === 1 ? '' : 's'}
           </p>
-          <button onClick={reset}>Send another</button>
+          <button onClick={reset}>Send Another</button>
         </div>
       )}
 
       {status.kind === 'error' && (
         <div className="result">
           <p className="err">{status.message}</p>
-          <button onClick={reset}>Start over</button>
+          <button onClick={reset}>Start Over</button>
         </div>
       )}
     </>
@@ -399,6 +400,8 @@ function ReceivePanel({ onReset }: { onReset: () => void }) {
                 value={code}
                 onChange={(e) => setCode(e.target.value)}
                 placeholder="XXXXXX"
+                autoComplete="off"
+                spellCheck={false}
                 style={{ textTransform: 'uppercase', letterSpacing: '.1em' }}
               />
             </label>
@@ -433,6 +436,7 @@ function ReceivePanel({ onReset }: { onReset: () => void }) {
                 <br />
                 <input
                   type="password"
+                  autoComplete="off"
                   value={incomingPassword}
                   onChange={(e) => setIncomingPassword(e.target.value)}
                   placeholder="Password"
@@ -473,7 +477,7 @@ function ReceivePanel({ onReset }: { onReset: () => void }) {
             </p>
           )}
           <button onClick={() => downloadBlob(status.files[0].blob, status.files[0].header.name)}>Download</button>
-          <button onClick={reset}>Receive another</button>
+          <button onClick={reset}>Receive Another</button>
         </div>
       )}
 
@@ -497,8 +501,8 @@ function ReceivePanel({ onReset }: { onReset: () => void }) {
             ))}
           </ol>
           <div className="actions">
-            <button onClick={() => downloadAll(status.files)}>Download all</button>
-            <button onClick={reset}>Receive another</button>
+            <button onClick={() => downloadAll(status.files)}>Download All</button>
+            <button onClick={reset}>Receive Another</button>
           </div>
         </div>
       )}
@@ -506,7 +510,7 @@ function ReceivePanel({ onReset }: { onReset: () => void }) {
       {status.kind === 'error' && (
         <div className="result">
           <p className="err">{status.message}</p>
-          <button onClick={reset}>Start over</button>
+          <button onClick={reset}>Start Over</button>
         </div>
       )}
     </>

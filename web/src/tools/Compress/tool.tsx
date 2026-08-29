@@ -263,7 +263,7 @@ export default function CompressTool() {
               )
             })}
           </ol>
-          {status.results.length > 1 && <button onClick={() => downloadAll(status.results)}>Download all</button>}
+          {status.results.length > 1 && <button onClick={() => downloadAll(status.results)}>Download All</button>}
         </div>
       )}
     </>

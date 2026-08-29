@@ -164,6 +164,7 @@ export default function ExtractTextTool() {
             This file is password protected.{' '}
             <input
               type="password"
+              autoComplete="off"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Password"
@@ -238,7 +239,7 @@ export default function ExtractTextTool() {
             <>
               <p className="muted">{status.result.fullText.length.toLocaleString()} characters</p>
               <div className="actions">
-                <button onClick={() => copyAll(status.result.fullText)}>{copied ? 'Copied!' : 'Copy all'}</button>
+                <button onClick={() => copyAll(status.result.fullText)}>{copied ? 'Copied!' : 'Copy All'}</button>
                 <button onClick={() => downloadText(status.result.fullText)}>Download .txt</button>
               </div>
             </>

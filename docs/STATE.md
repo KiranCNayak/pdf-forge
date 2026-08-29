@@ -281,6 +281,57 @@ path), and site-wide navigation. Not covered: drag-and-drop interactions specifi
 from Playwright has the same reliability problems the Chrome-extension manual
 verification of `organize-pages` hit; worth a dedicated pass if it turns out to matter.
 
+**A Vercel Web Interface Guidelines pass ran across every tool page and the shared
+UI shell** (`web/src/components/`, `web/src/lib/device.ts`, `web/index.html`), against
+the rule set at `vercel-labs/web-interface-guidelines`. Most categories already passed
+— semantic `<button>`/`<label>` throughout (no `<div onClick>` anywhere), icon-only
+buttons already carry `aria-label`, `:focus-visible` replaces rather than removes the
+outline, hover states exist on every interactive element, no first-person copy, no
+spelled-out numbers, `color-scheme: light dark` already set. Fixed:
+
+- **Forms.** Every `type="password"` input (11, across 10 tools) now sets
+  `autoComplete="off"` — PDF/file passwords aren't account credentials, and letting a
+  browser's password manager offer to save or autofill them is actively wrong for a
+  one-off document password. P2P Share's room-code field gained `autoComplete="off"` +
+  `spellCheck={false}` (it's a code, not prose).
+- **Typography.** `formatBytes` (`lib/device.ts`) and the low-memory warning message now
+  join the number and unit with U+00A0 (non-breaking space) instead of a plain space —
+  `1024` → `"1.0 KB"` where that space can never become a line break, so a size like
+  "1.9 KB" can't wrap mid-value in a narrow layout. This is the single most reused
+  string in the app — every tool's staged-file list and result summary goes through it.
+- **Dark mode.** `index.html` gained two `<meta name="theme-color">` tags matching
+  `styles.css`'s `--bg` for each `prefers-color-scheme`, so browser chrome (mobile
+  status bar, pull-to-refresh background) doesn't mismatch the page.
+- **Content & Copy.** Multi-word button labels moved from sentence case to Title Case
+  (Chicago style, per the rule): "Download all" → "Download All", "Send a file" →
+  "Send a File", "Receive a file" → "Receive a File", "Create room" → "Create Room",
+  "Remove password" → "Remove Password", "Copy all" → "Copy All", "Send/Receive
+  another" → "Send/Receive Another", "Start over" → "Start Over". Single-word labels
+  (Merge, Split, Download, Cancel, …) were already correct. Safe because every e2e
+  `getByRole('button', { name: /.../i })` selector is case-insensitive by construction
+  — none needed updating.
+
+Deliberately **not** changed, with reasoning: `transition: border-color/background-
+color/color` on hover (guideline prefers `transform`/`opacity`-only) — these are cheap,
+repaint-only properties, not the layout-triggering kind the rule is actually guarding
+against, and switching hover feedback to opacity-only would be a real visual regression
+for no performance gain. Progress-line captions like `"{stage} {done}/{total}"` don't end
+in `…` — appending it after a numeral ("reading 3/5…") reads worse than the rule intends
+to prevent. Example-format placeholders ("1-3, 5", "XXXXXX") don't end in `…` either —
+that pattern is for prompt-style placeholders like "Search…", not literal format
+examples shown as ghost text. Deep-linking tool-internal state (radio choices, staged
+files) to the URL wasn't done — files aren't serializable to a URL and every tool's state
+is meaningless to reload into anyway; `organize-pages` already warns before an
+accidental reload via `beforeunload`, which is the actual risk the deep-linking rule
+guards against. `OrganizePages`' un-virtualized thumbnail grid is a pre-existing,
+already-documented V1 cut (own file header), not a silent violation to "fix" under this
+pass.
+
+Verified: gofmt/vet/go test clean for engine (no Go touched), web typecheck + build
+clean, full 25-test Playwright suite green, and a live browser check (byte-size strings
+render correctly with the embedded non-breaking space, theme-color meta tags present,
+zero console errors on Merge/P2P Share/Encrypt).
+
 **This work parallelises.** `docs/PARALLEL.md` defines four non-overlapping lanes —
 engine ops, tool UIs, signaling server, render pipeline — and the worktree flow for
 running them at once.

@@ -191,6 +191,7 @@ export default function PdfToImageTool() {
             This file is password protected.{' '}
             <input
               type="password"
+              autoComplete="off"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Password"
@@ -314,7 +315,7 @@ export default function PdfToImageTool() {
               </li>
             ))}
           </ol>
-          {status.pages.length > 1 && <button onClick={() => downloadAll(status.pages)}>Download all</button>}
+          {status.pages.length > 1 && <button onClick={() => downloadAll(status.pages)}>Download All</button>}
         </div>
       )}
     </>

@@ -111,6 +111,7 @@ export default function RemovePasswordTool() {
               <br />
               <input
                 type="password"
+                autoComplete="off"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Password"
@@ -124,7 +125,7 @@ export default function RemovePasswordTool() {
 
           <div className="actions">
             <button onClick={run} disabled={blocked || status.kind === 'working'}>
-              {status.kind === 'working' ? 'Removing…' : 'Remove password'}
+              {status.kind === 'working' ? 'Removing…' : 'Remove Password'}
             </button>
             {status.kind === 'working' && <button onClick={() => engine.terminate()}>Cancel</button>}
           </div>

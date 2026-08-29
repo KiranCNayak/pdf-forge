@@ -121,6 +121,7 @@ export default function SplitTool() {
             This file is password protected.{' '}
             <input
               type="password"
+              autoComplete="off"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Password"
@@ -206,7 +207,7 @@ export default function SplitTool() {
             ))}
           </ol>
           {status.parts.length > 1 && (
-            <button onClick={() => downloadAll(status.parts)}>Download all</button>
+            <button onClick={() => downloadAll(status.parts)}>Download All</button>
           )}
         </div>
       )}

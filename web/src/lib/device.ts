@@ -76,13 +76,13 @@ export function checkBudget(estimatedBytes: number, caps = deviceCaps()): Verdic
   return {
     ok: false,
     degrade: false,
-    message: `This needs about ${(withSafety / 1024 ** 3).toFixed(1)} GB, more than this device can spare.`,
+    message: `This needs about ${(withSafety / 1024 ** 3).toFixed(1)} GB, more than this device can spare.`,
   }
 }
 
 export function formatBytes(n: number): string {
-  if (n < 1024) return `${n} B`
-  if (n < 1024 ** 2) return `${(n / 1024).toFixed(1)} KB`
-  if (n < 1024 ** 3) return `${(n / 1024 ** 2).toFixed(2)} MB`
-  return `${(n / 1024 ** 3).toFixed(2)} GB`
+  if (n < 1024) return `${n} B`
+  if (n < 1024 ** 2) return `${(n / 1024).toFixed(1)} KB`
+  if (n < 1024 ** 3) return `${(n / 1024 ** 2).toFixed(2)} MB`
+  return `${(n / 1024 ** 3).toFixed(2)} GB`
 }
