@@ -13,8 +13,18 @@
 //    fully verified for realistic file sizes; revisit if huge transfers turn
 //    out to matter.
 //  - No gzip via CompressionStream, no pause/resume control frames beyond
-//    cancel, single file per transfer (not sequential multi-file).
+//    cancel.
 //
+// Sequential multi-file transfer (sendFiles/receiveFiles below) is built as a
+// thin orchestration layer on top of the single-file primitives, not a
+// second protocol: every FileHeader already carries batchIndex/batchTotal
+// (protocol.ts), so the wire format needs no new control-frame type. The
+// receiver's accept/reject decision is only asked for once, on the first
+// file — the batch is one commitment, not N re-prompts — and the same
+// password (if any) is reused for every file after it, since SendPanel only
+// exposes one password field for the whole transfer anyway. Cancelling
+// mid-batch aborts the rest of it: sendFile's existing 'cancel' control frame
+// and TransferCancelledError need no batch-awareness at all.
 // The optional password layer (p2p/crypto.ts) IS implemented: when set, the
 // sender encrypts the whole buffer before chunking, and the receiver
 // decrypts the whole assembled buffer before verifying sha256 — encryption
@@ -83,6 +93,8 @@ export async function sendFile(
   onProgress: (sent: number, total: number) => void,
   isCancelled: () => boolean,
   password?: string,
+  batchIndex = 1,
+  batchTotal = 1,
 ): Promise<void> {
   dc.bufferedAmountLowThreshold = BUFFERED_AMOUNT_LOW_THRESHOLD
 
@@ -96,6 +108,8 @@ export async function sendFile(
     mime: file.type || 'application/octet-stream',
     sha256,
     encrypted: !!password,
+    batchIndex,
+    batchTotal,
   }
   sendControl(dc, { type: 'header', header })
 
@@ -125,6 +139,23 @@ export async function sendFile(
   sendControl(dc, { type: 'end' })
 }
 
+/** Sends every file in `files`, in order, over one already-accepted batch —
+ * see this file's header comment. `onProgress`'s first argument is the
+ * 0-based index of the file currently in flight. A rejection or cancellation
+ * on any file (in practice, only ever the first — see receiveFiles) aborts
+ * the whole batch; files already sent stay sent, there's no rollback. */
+export async function sendFiles(
+  dc: RTCDataChannel,
+  files: File[],
+  onProgress: (fileIndex: number, sent: number, total: number) => void,
+  isCancelled: () => boolean,
+  password?: string,
+): Promise<void> {
+  for (let i = 0; i < files.length; i++) {
+    await sendFile(dc, files[i], (sent, total) => onProgress(i, sent, total), isCancelled, password, i + 1, files.length)
+  }
+}
+
 export interface ReceivedFile {
   blob: Blob
   header: FileHeader
@@ -140,14 +171,28 @@ export interface OfferDecision {
   password?: string
 }
 
+/** Shared by receiveFile and receiveFiles: turns raw received chunks into a
+ * verified Blob. Decryption happens once, after every chunk has arrived —
+ * GCM's auth tag covers the whole ciphertext, so there's no way to verify a
+ * password against a partial transfer. Throws WrongPasswordError
+ * (distinguishable from a generic failure) if decryption's auth check
+ * fails. */
+async function assembleReceivedFile(
+  chunks: ArrayBuffer[],
+  header: FileHeader,
+  password: string | undefined,
+): Promise<ReceivedFile> {
+  const wireBuffer = await new Blob(chunks).arrayBuffer()
+  const plaintext = header.encrypted ? await decryptBytes(wireBuffer, password ?? '') : wireBuffer
+  const actual = await sha256Hex(plaintext)
+  const blob = new Blob([plaintext], { type: header.mime })
+  return { blob, header, verified: actual === header.sha256 }
+}
+
 /** Receiver side: waits for a header frame, hands it to `onOffer` for the
  * caller to accept/reject (and supply a password, if the header says the
  * file is encrypted), then receives chunks with progress until 'end' or
- * 'cancel'. Decryption happens once, after every chunk has arrived — GCM's
- * auth tag covers the whole ciphertext, so there's no way to verify a
- * password against a partial transfer. Rejects with WrongPasswordError
- * (distinguishable from a generic failure) if decryption's auth check
- * fails. */
+ * 'cancel'. */
 export function receiveFile(
   dc: RTCDataChannel,
   onOffer: (header: FileHeader) => Promise<OfferDecision>,
@@ -179,17 +224,11 @@ export function receiveFile(
             return
           }
           const h = header
-          void (async () => {
-            try {
-              const wireBuffer = await new Blob(chunks).arrayBuffer()
-              const plaintext = h.encrypted ? await decryptBytes(wireBuffer, password ?? '') : wireBuffer
-              const actual = await sha256Hex(plaintext)
-              const blob = new Blob([plaintext], { type: h.mime })
-              resolve({ blob, header: h, verified: actual === h.sha256 })
-            } catch (err) {
-              reject(err instanceof WrongPasswordError ? err : new Error('Could not assemble the received file.'))
-            }
-          })()
+          void assembleReceivedFile(chunks, h, password)
+            .then(resolve)
+            .catch((err: unknown) =>
+              reject(err instanceof WrongPasswordError ? err : new Error('Could not assemble the received file.')),
+            )
         } else if (msg.type === 'cancel') {
           dc.removeEventListener('message', onMessage)
           reject(new TransferCancelledError())
@@ -203,6 +242,114 @@ export function receiveFile(
       chunks.push(chunk)
       received += chunk.byteLength
       onProgress(received, header?.size ?? received)
+    }
+
+    dc.addEventListener('message', onMessage)
+  })
+}
+
+/** Receives a whole batch over ONE persistent message listener — deliberately
+ * not N sequential calls to receiveFile. An earlier version called receiveFile
+ * once per file; each call installs and tears down its own listener, and the
+ * teardown for file N happens synchronously on 'end' while the (async)
+ * decrypt-and-verify step for file N is still in flight. An eager sender can
+ * — and in testing, reliably did — get file N+1's header onto the wire in
+ * that gap, with nobody listening to catch it, hanging the transfer forever.
+ * Keeping one listener alive for the whole batch removes the gap entirely.
+ *
+ * The first file goes through `onOffer` for a real accept/reject/password
+ * decision, same as a single-file transfer. Every file after that is
+ * auto-accepted with the same password — the user already committed to the
+ * batch, and the sender only ever asks for consent once (see sendFiles) — so
+ * there is nothing left to prompt for. A rejection on the first file rejects
+ * the whole promise before any chunk of anything has been sent. */
+export function receiveFiles(
+  dc: RTCDataChannel,
+  onOffer: (header: FileHeader) => Promise<OfferDecision>,
+  onProgress: (fileIndex: number, received: number, total: number) => void,
+): Promise<ReceivedFile[]> {
+  return new Promise((resolve, reject) => {
+    const results: ReceivedFile[] = []
+    let fileIndex = 0
+    let header: FileHeader | null = null
+    let password: string | undefined
+    let chunks: ArrayBuffer[] = []
+    let received = 0
+    // Set synchronously the instant the first 'header' is *seen*, not once
+    // its onOffer decision resolves. The sender only sends header N+1 after
+    // receiving file N's 'accept', which only happens after file N's onOffer
+    // decision already resolved — so by the time any later header arrives,
+    // this is safely true. Gating on `fileIndex` instead (only bumped once
+    // file N's async decrypt-and-verify finishes) looked equivalent but
+    // wasn't: header 2 can arrive and get processed before file 1's
+    // assembly promise resolves, which made this a real bug caught by
+    // e2e's multi-file test, not just a theoretical race.
+    let sawFirstHeader = false
+
+    const onMessage = (e: MessageEvent) => {
+      if (typeof e.data === 'string') {
+        const msg = JSON.parse(e.data) as ChannelControl
+        if (msg.type === 'header') {
+          // Reset synchronously, right here — not in the previous file's
+          // 'end' continuation below. That continuation runs after an
+          // async decrypt-and-verify step, by which point THIS header may
+          // already have arrived and this file's own chunks may already be
+          // accumulating; resetting `received`/`header` there raced with
+          // and clobbered that in-progress state. Caught by e2e's
+          // multi-file test as an intermittent "Transfer ended before a
+          // file header arrived" — chunks counted as file 2's went into a
+          // `received` counter that a late-resolving file-1 promise then
+          // zeroed, or `header` got nulled out after already being set to
+          // file 2's header.
+          header = msg.header
+          received = 0
+          const isFirst = !sawFirstHeader
+          sawFirstHeader = true
+          const decisionPromise: Promise<OfferDecision> = isFirst
+            ? onOffer(msg.header)
+            : Promise.resolve({ accept: true, password })
+          void decisionPromise.then((decision) => {
+            if (isFirst) password = decision.password
+            sendControl(dc, { type: decision.accept ? 'accept' : 'reject' })
+            if (!decision.accept) {
+              dc.removeEventListener('message', onMessage)
+              reject(new TransferRejectedError())
+            }
+          })
+        } else if (msg.type === 'end') {
+          if (!header) {
+            dc.removeEventListener('message', onMessage)
+            reject(new Error('Transfer ended before a file header arrived.'))
+            return
+          }
+          const h = header
+          const finishedChunks = chunks
+          chunks = []
+          void assembleReceivedFile(finishedChunks, h, password)
+            .then((result) => {
+              results.push(result)
+              fileIndex += 1
+              if (fileIndex >= h.batchTotal) {
+                dc.removeEventListener('message', onMessage)
+                resolve(results)
+              }
+              // else: keep listening — the next file's header is still to come.
+            })
+            .catch((err: unknown) => {
+              dc.removeEventListener('message', onMessage)
+              reject(err instanceof WrongPasswordError ? err : new Error('Could not assemble the received file.'))
+            })
+        } else if (msg.type === 'cancel') {
+          dc.removeEventListener('message', onMessage)
+          reject(new TransferCancelledError())
+        }
+        return
+      }
+
+      const chunk = e.data as ArrayBuffer
+      chunks.push(chunk)
+      received += chunk.byteLength
+      onProgress(fileIndex, received, header?.size ?? received)
     }
 
     dc.addEventListener('message', onMessage)

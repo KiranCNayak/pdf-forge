@@ -33,11 +33,12 @@ import { PeerLink } from '../../lib/p2p/PeerLink'
 import type { FileHeader, SignalErrorCode } from '../../lib/p2p/protocol'
 import { SignalingClient } from '../../lib/p2p/SignalingClient'
 import {
-  receiveFile,
-  sendFile,
+  receiveFiles,
+  sendFiles,
   TransferCancelledError,
   TransferRejectedError,
   type OfferDecision,
+  type ReceivedFile,
 } from '../../lib/p2p/transfer'
 
 const SIGNAL_ERROR_MESSAGES: Record<SignalErrorCode, string> = {
@@ -59,7 +60,7 @@ type SendStatus =
   | { kind: 'waiting'; code: string }
   | { kind: 'linking' }
   | { kind: 'offering' }
-  | { kind: 'transferring'; sent: number; total: number }
+  | { kind: 'transferring'; fileIndex: number; fileCount: number; sent: number; total: number }
   | { kind: 'done' }
   | { kind: 'error'; message: string }
 
@@ -68,9 +69,13 @@ type ReceiveStatus =
   | { kind: 'joining' }
   | { kind: 'waiting' }
   | { kind: 'incoming'; header: FileHeader }
-  | { kind: 'receiving'; received: number; total: number }
-  | { kind: 'done'; blob: Blob; header: FileHeader; verified: boolean }
+  | { kind: 'receiving'; fileIndex: number; fileCount: number; received: number; total: number }
+  | { kind: 'done'; files: ReceivedFile[] }
   | { kind: 'error'; message: string }
+
+function downloadAll(files: ReceivedFile[]) {
+  files.forEach((f, i) => setTimeout(() => downloadBlob(f.blob, f.header.name), i * 150))
+}
 
 export default function P2PShareTool() {
   const [role, setRole] = useState<'send' | 'receive' | null>(null)
@@ -90,12 +95,21 @@ export default function P2PShareTool() {
 }
 
 function SendPanel({ onReset }: { onReset: () => void }) {
-  const [file, setFile] = useState<File | null>(null)
+  const [files, setFiles] = useState<File[]>([])
   const [password, setPassword] = useState('')
   const [status, setStatus] = useState<SendStatus>({ kind: 'idle' })
   const signaling = useRef<SignalingClient | null>(null)
   const link = useRef<PeerLink | null>(null)
   const cancelled = useRef(false)
+
+  function addFiles(list: FileList | null) {
+    if (!list) return
+    setFiles((cur) => [...cur, ...Array.from(list)])
+  }
+
+  function removeAt(i: number) {
+    setFiles((cur) => cur.filter((_, j) => j !== i))
+  }
 
   function cleanup() {
     link.current?.close()
@@ -105,7 +119,7 @@ function SendPanel({ onReset }: { onReset: () => void }) {
   }
 
   async function start() {
-    if (!file) return
+    if (files.length === 0) return
     cancelled.current = false
     setStatus({ kind: 'connecting' })
 
@@ -153,10 +167,11 @@ function SendPanel({ onReset }: { onReset: () => void }) {
           const dc = await pl.startAsSender()
           dc.onopen = () => {
             setStatus({ kind: 'offering' })
-            sendFile(
+            sendFiles(
               dc,
-              file,
-              (sent, total) => setStatus({ kind: 'transferring', sent, total }),
+              files,
+              (fileIndex, sent, total) =>
+                setStatus({ kind: 'transferring', fileIndex, fileCount: files.length, sent, total }),
               () => cancelled.current,
               password || undefined,
             )
@@ -180,7 +195,7 @@ function SendPanel({ onReset }: { onReset: () => void }) {
 
   function reset() {
     cleanup()
-    setFile(null)
+    setFiles([])
     setStatus({ kind: 'idle' })
     onReset()
   }
@@ -190,12 +205,22 @@ function SendPanel({ onReset }: { onReset: () => void }) {
       {status.kind === 'idle' && (
         <>
           <p>
-            <input type="file" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+            <input type="file" multiple onChange={(e) => addFiles(e.target.files)} />
           </p>
-          {file && (
-            <p className="muted">
-              {file.name} · {formatBytes(file.size)}
-            </p>
+          {files.length > 0 && (
+            <ol className="files">
+              {files.map((f, i) => (
+                <li key={`${f.name}-${i}`}>
+                  <span className="name">{f.name}</span>
+                  <span className="muted">{formatBytes(f.size)}</span>
+                  <span className="controls">
+                    <button onClick={() => removeAt(i)} aria-label="Remove">
+                      ✕
+                    </button>
+                  </span>
+                </li>
+              ))}
+            </ol>
           )}
           <p>
             <label>
@@ -216,7 +241,7 @@ function SendPanel({ onReset }: { onReset: () => void }) {
             </p>
           )}
           <div className="actions">
-            <button onClick={start} disabled={!file}>
+            <button onClick={start} disabled={files.length === 0}>
               Create room
             </button>
             <button onClick={onReset}>Back</button>
@@ -236,12 +261,18 @@ function SendPanel({ onReset }: { onReset: () => void }) {
       )}
 
       {status.kind === 'linking' && <p className="muted">Peer joined — connecting…</p>}
-      {status.kind === 'offering' && <p className="muted">Connected. Waiting for them to accept the file…</p>}
+      {status.kind === 'offering' && (
+        <p className="muted">
+          Connected. Waiting for them to accept the file{files.length === 1 ? '' : 's'}…
+        </p>
+      )}
 
       {status.kind === 'transferring' && (
         <div className="result">
           <p>
-            Sending {file?.name} — {formatBytes(status.sent)} / {formatBytes(status.total)}
+            Sending {files[status.fileIndex]?.name}
+            {status.fileCount > 1 && ` (${status.fileIndex + 1} of ${status.fileCount})`} —{' '}
+            {formatBytes(status.sent)} / {formatBytes(status.total)}
           </p>
           <progress value={status.sent} max={status.total} style={{ width: '100%' }} />
           <button onClick={cancel}>Cancel</button>
@@ -250,7 +281,9 @@ function SendPanel({ onReset }: { onReset: () => void }) {
 
       {status.kind === 'done' && (
         <div className="result">
-          <p>Sent · {file?.name}</p>
+          <p>
+            Sent · {files.length} file{files.length === 1 ? '' : 's'}
+          </p>
           <button onClick={reset}>Send another</button>
         </div>
       )}
@@ -271,6 +304,7 @@ function ReceivePanel({ onReset }: { onReset: () => void }) {
   const signaling = useRef<SignalingClient | null>(null)
   const link = useRef<PeerLink | null>(null)
   const decision = useRef<((decision: OfferDecision) => void) | null>(null)
+  const fileCount = useRef(1)
   const [incomingPassword, setIncomingPassword] = useState('')
 
   function cleanup() {
@@ -316,16 +350,18 @@ function ReceivePanel({ onReset }: { onReset: () => void }) {
         }
       }
       pl.onChannel = (dc) => {
-        void receiveFile(
+        void receiveFiles(
           dc,
           (header) =>
             new Promise<OfferDecision>((resolve) => {
+              fileCount.current = header.batchTotal
               decision.current = resolve
               setStatus({ kind: 'incoming', header })
             }),
-          (received, total) => setStatus({ kind: 'receiving', received, total }),
+          (fileIndex, received, total) =>
+            setStatus({ kind: 'receiving', fileIndex, fileCount: fileCount.current, received, total }),
         )
-          .then((result) => setStatus({ kind: 'done', blob: result.blob, header: result.header, verified: result.verified }))
+          .then((files) => setStatus({ kind: 'done', files }))
           .catch((err: unknown) => {
             if (err instanceof TransferRejectedError) setStatus({ kind: 'idle' })
             else if (err instanceof TransferCancelledError) setStatus({ kind: 'error', message: 'The sender cancelled.' })
@@ -383,7 +419,13 @@ function ReceivePanel({ onReset }: { onReset: () => void }) {
         <div className="result">
           <p>
             Incoming: {status.header.name} · {formatBytes(status.header.size)}
+            {status.header.batchTotal > 1 && ` (file ${status.header.batchIndex} of ${status.header.batchTotal})`}
           </p>
+          {status.header.batchTotal > 1 && (
+            <p className="muted">
+              This is a batch of {status.header.batchTotal} files — accepting takes all of them.
+            </p>
+          )}
           {status.header.encrypted && (
             <p>
               <label>
@@ -410,24 +452,54 @@ function ReceivePanel({ onReset }: { onReset: () => void }) {
       {status.kind === 'receiving' && (
         <div className="result">
           <p>
-            Receiving — {formatBytes(status.received)} / {formatBytes(status.total)}
+            Receiving{status.fileCount > 1 && ` (file ${status.fileIndex + 1} of ${status.fileCount})`} —{' '}
+            {formatBytes(status.received)} / {formatBytes(status.total)}
           </p>
           <progress value={status.received} max={status.total} style={{ width: '100%' }} />
         </div>
       )}
 
-      {status.kind === 'done' && (
+      {status.kind === 'done' && status.files.length === 1 && (
         <div className="result">
-          {status.verified ? (
-            <p>Received · {status.header.name} · {formatBytes(status.header.size)} · integrity verified</p>
+          {status.files[0].verified ? (
+            <p>
+              Received · {status.files[0].header.name} · {formatBytes(status.files[0].header.size)} · integrity
+              verified
+            </p>
           ) : (
             <p className="err">
-              Received {status.header.name}, but its checksum doesn't match what the sender declared — the file may
-              be corrupt. Download at your own risk, or ask them to resend.
+              Received {status.files[0].header.name}, but its checksum doesn't match what the sender declared — the
+              file may be corrupt. Download at your own risk, or ask them to resend.
             </p>
           )}
-          <button onClick={() => downloadBlob(status.blob, status.header.name)}>Download</button>
+          <button onClick={() => downloadBlob(status.files[0].blob, status.files[0].header.name)}>Download</button>
           <button onClick={reset}>Receive another</button>
+        </div>
+      )}
+
+      {status.kind === 'done' && status.files.length > 1 && (
+        <div className="result">
+          <p>{status.files.length} files received.</p>
+          <ol className="files">
+            {status.files.map((f, i) => (
+              <li key={`${f.header.name}-${i}`}>
+                <span className="name">{f.header.name}</span>
+                <span className="muted">
+                  {formatBytes(f.header.size)}
+                  {!f.verified && (
+                    <strong className="err"> · checksum mismatch, may be corrupt</strong>
+                  )}
+                </span>
+                <span className="controls">
+                  <button onClick={() => downloadBlob(f.blob, f.header.name)}>Download</button>
+                </span>
+              </li>
+            ))}
+          </ol>
+          <div className="actions">
+            <button onClick={() => downloadAll(status.files)}>Download all</button>
+            <button onClick={reset}>Receive another</button>
+          </div>
         </div>
       )}
 

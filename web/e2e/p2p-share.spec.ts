@@ -50,6 +50,56 @@ test('sends a file from one browser context to another, unencrypted', async ({ b
   }
 })
 
+test('sends multiple files in one batch, one accept covers all of them', async ({ browser }) => {
+  const senderCtx = await browser.newContext()
+  const receiverCtx = await browser.newContext()
+  const sender = await senderCtx.newPage()
+  const receiver = await receiverCtx.newPage()
+
+  try {
+    await sender.goto('/#/p2p-share')
+    await sender.getByRole('button', { name: /^send a file$/i }).click()
+    await sender.locator('input[type="file"]').setInputFiles([fixture('sample-a.pdf'), fixture('sample-b.pdf')])
+
+    const staged = sender.locator('ol.files li')
+    await expect(staged).toHaveCount(2)
+
+    await sender.getByRole('button', { name: /^create room$/i }).click()
+
+    const codeLocator = sender.locator('p').filter({ hasText: ROOM_CODE })
+    await expect(codeLocator).toBeVisible({ timeout: 15_000 })
+    const code = (await codeLocator.textContent())!.trim()
+
+    await receiver.goto('/#/p2p-share')
+    await receiver.getByRole('button', { name: /^receive a file$/i }).click()
+    await receiver.getByLabel(/room code/i).fill(code)
+    await receiver.getByRole('button', { name: /^connect$/i }).click()
+
+    // Batch of 2 — the offer names only the first file and says so explicitly.
+    await expect(receiver.getByText(/^incoming: sample-a\.pdf.*file 1 of 2/i)).toBeVisible({ timeout: 15_000 })
+    await expect(receiver.getByText(/batch of 2 files/i)).toBeVisible()
+    await receiver.getByRole('button', { name: /^accept$/i }).click()
+
+    // No second prompt — both files arrive off the one accept.
+    await expect(sender.getByText(/^sent · 2 files$/i)).toBeVisible({ timeout: 15_000 })
+    await expect(receiver.getByText(/^2 files received\.$/i)).toBeVisible({ timeout: 15_000 })
+
+    const rows = receiver.locator('ol.files li')
+    await expect(rows).toHaveCount(2)
+    await expect(rows.first()).toContainText('sample-a.pdf')
+    await expect(rows.nth(1)).toContainText('sample-b.pdf')
+
+    const [download] = await Promise.all([
+      receiver.waitForEvent('download'),
+      rows.nth(1).getByRole('button', { name: /^download$/i }).click(),
+    ])
+    expect(download.suggestedFilename()).toBe('sample-b.pdf')
+  } finally {
+    await senderCtx.close()
+    await receiverCtx.close()
+  }
+})
+
 test('a wrong password is reported distinctly on an encrypted transfer', async ({ browser }) => {
   const senderCtx = await browser.newContext()
   const receiverCtx = await browser.newContext()

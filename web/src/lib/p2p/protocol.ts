@@ -49,6 +49,15 @@ export interface FileHeader {
    * not the plaintext file. The receiver needs a password before it can even
    * attempt decryption, let alone verify sha256. */
   encrypted: boolean
+  /** 1-based position of this file within its transfer batch. */
+  batchIndex: number
+  /** Total files in this batch. 1 for an ordinary single-file transfer — every
+   * header carries these two fields rather than making them optional, so
+   * receiveFile/receiveFiles never need an "is this a batch?" branch. See
+   * transfer.ts's header comment for how sequential multi-file transfer is
+   * built on top of the single-file primitives with no new control-frame
+   * type. */
+  batchTotal: number
 }
 
 export type ChannelControl =

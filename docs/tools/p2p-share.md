@@ -11,19 +11,39 @@ no storage, no link expiry — because there is nothing anywhere to expire.
 signaling via a real `signaling/` deployment (WS create/join/relay), trickle ICE with
 candidate buffering for the race against `setRemoteDescription`, chunked transfer with
 `bufferedAmountLowThreshold` backpressure, header/accept/reject/end control protocol,
-SHA-256 verification, honest ICE-failure and room-error messaging, and the optional
-password layer (`p2p/crypto.ts`: PBKDF2-SHA256 → AES-256-GCM, same envelope as ihatepdf's
-own construction). Verified with two live browser tabs against a locally-run signaling
-server: full handshake, a transferred file confirmed byte-identical via `diff` both
-unencrypted and through a full encrypt/decrypt round trip, a wrong password correctly
-reported as "Wrong password." rather than "file corrupt", invalid-code and peer-declined
-paths, zero console errors throughout.
+SHA-256 verification, honest ICE-failure and room-error messaging, sequential multi-file
+transfer, and the optional password layer (`p2p/crypto.ts`: PBKDF2-SHA256 → AES-256-GCM,
+same envelope as ihatepdf's own construction). Verified with two live browser tabs
+against a locally-run signaling server: full handshake, a transferred file confirmed
+byte-identical via `diff` both unencrypted and through a full encrypt/decrypt round trip,
+a wrong password correctly reported as "Wrong password." rather than "file corrupt",
+invalid-code and peer-declined paths, zero console errors throughout.
+
+**Multi-file transfer** (`sendFiles`/`receiveFiles` in `transfer.ts`) sends a whole batch
+over one data channel with one accept: the sender tags each `FileHeader` with
+`batchIndex`/`batchTotal` rather than the wire protocol growing a new control-frame type,
+the receiver's `onOffer` is only invoked for the first file, and every file after that is
+auto-accepted with the same password. Building it caught two real concurrency bugs, both
+now regression-tested by `web/e2e/p2p-share.spec.ts`'s multi-file spec:
+
+- Calling the single-file `receiveFile` once per file (the first working version) tears
+  down and re-installs the data channel's message listener between files. The teardown
+  for file N happens synchronously on `'end'`, while N's async decrypt-and-verify is
+  still in flight — a fast sender can get file N+1's header onto the wire in that gap
+  with nobody listening, hanging the transfer forever. Fixed by keeping one listener
+  alive for the whole batch (`receiveFiles` is its own state machine now, not N calls to
+  `receiveFile`).
+- Even with one listener, resetting `received`/`header` in the _previous_ file's `'end'`
+  continuation raced with the _next_ file's header/chunks, which can legitimately arrive
+  before that continuation's `await`s resolve — the reset would zero an already-counting
+  progress or null out an already-set header, surfacing as an intermittent "Transfer
+  ended before a file header arrived." Fixed by resetting synchronously in the `'header'`
+  handler itself, not asynchronously after the prior file finishes.
 
 **Deferred:**
 
 - IndexedDB assembly — V1 buffers the whole file in memory on both ends. See
   `web/src/lib/p2p/transfer.ts`'s header for what a correct chunked version needs.
-- Multi-file sequential transfer (one file per transfer in V1).
 - gzip via `CompressionStream`.
 - The `BroadcastChannel` same-tab shortcut.
 - The manual-paste fallback for when the signaling server is unreachable.
