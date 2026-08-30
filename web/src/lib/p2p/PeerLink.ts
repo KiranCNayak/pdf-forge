@@ -1,8 +1,13 @@
 // Wraps one RTCPeerConnection for one room, relaying SDP/ICE through a
-// SignalingClient. This is the trickle-ICE half of docs/tools/p2p-share.md
-// §2 — candidates are sent as they're discovered instead of ihatepdf's
-// block-for-7-seconds-then-paste approach, because we have a channel to
-// send late ones on.
+// SignalTransport — SignalingClient (the real WebSocket server) or
+// BroadcastSignalingClient (the same-browser shortcut), typed structurally
+// so this file doesn't care which. This is the trickle-ICE half of
+// docs/tools/p2p-share.md §2 — candidates are sent as they're discovered
+// instead of ihatepdf's block-for-7-seconds-then-paste approach, because we
+// have a channel to send late ones on. (The manual-paste fallback for when
+// NEITHER transport is reachable is a separate class, ManualLink — it has no
+// channel for late candidates either, so it really does have to block on
+// full ICE gathering the way ihatepdf's always does.)
 //
 // STUN only, no TURN — a deliberate, documented limitation (see the doc's
 // "No TURN" section): symmetric NAT and strict firewalls will fail outright
@@ -10,20 +15,15 @@
 // server, which breaks the point of this tool. onState reports 'failed' so
 // the UI can say so honestly rather than hang on a spinner.
 
+import { ICE_SERVERS } from './config'
 import type { SignalEnvelope } from './protocol'
-import type { SignalingClient } from './SignalingClient'
-
-const ICE_SERVERS: RTCIceServer[] = [
-  { urls: 'stun:stun.l.google.com:19302' },
-  { urls: 'stun:stun1.l.google.com:19302' },
-  { urls: 'stun:stun2.l.google.com:19302' },
-]
+import type { SignalTransport } from './SignalTransport'
 
 export type LinkState = 'connecting' | 'connected' | 'disconnected' | 'failed' | 'closed'
 
 export class PeerLink {
   #pc: RTCPeerConnection
-  #signaling: SignalingClient
+  #signaling: SignalTransport
   #code: string
   #unsubscribe: () => void
   // ICE candidates can arrive (or even be generated locally) before the
@@ -36,7 +36,7 @@ export class PeerLink {
   onState: (s: LinkState) => void = () => {}
   onChannel: (dc: RTCDataChannel) => void = () => {}
 
-  constructor(signaling: SignalingClient, code: string) {
+  constructor(signaling: SignalTransport, code: string) {
     this.#signaling = signaling
     this.#code = code
     this.#pc = new RTCPeerConnection({ iceServers: ICE_SERVERS })

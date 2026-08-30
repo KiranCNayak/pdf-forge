@@ -2,18 +2,23 @@
 // engine call with progress -> EngineError.code switch -> download.
 // See docs/tools/split.md.
 //
-// The engine returns one SplitPart per output document. We don't bundle a zip
-// library (that's a shared dependency decision per docs/PARALLEL.md), so
-// results are offered as individual downloads, per split.md's fallback for
-// "few outputs" — and the single-part case is the common one anyway.
+// The engine returns every SplitPart in one call, already in memory — unlike
+// PdfToZip's per-page streaming loop, there's no "never collect in an array"
+// concern here, since the array already exists by the time this file sees
+// it. "Download All" zips it with jszip, the same dependency PdfToZip added
+// (with direct user go-ahead) — this file doesn't re-litigate that decision,
+// it just reuses the library that's already in the bundle. Per-part
+// downloads stay available too, for the single-part case (no ZIP needed at
+// all) and for anyone who wants just one piece.
 
 import { useState } from 'react'
+import JSZip from 'jszip'
 import { FilePicker } from '../../components/FilePicker'
 import { engine } from '../../engine/EngineClient'
 import { EngineError } from '../../engine/protocol'
 import type { SplitPart } from '../../engine/protocol'
 import { checkBudget, deviceCaps, estimateEngineBytes, formatBytes } from '../../lib/device'
-import { downloadBytes } from '../../lib/download'
+import { downloadBlob, downloadBytes } from '../../lib/download'
 
 type Mode = 'each' | 'span' | 'ranges'
 
@@ -37,6 +42,7 @@ export default function SplitTool() {
   const [span, setSpan] = useState(1)
   const [rangesText, setRangesText] = useState('')
   const [status, setStatus] = useState<Status>({ kind: 'idle' })
+  const [zipping, setZipping] = useState(false)
   const caps = deviceCaps()
 
   const budget = checkBudget(estimateEngineBytes(staged?.file.size ?? 0), caps)
@@ -96,8 +102,16 @@ export default function SplitTool() {
     }
   }
 
-  function downloadAll(parts: SplitPart[]) {
-    parts.forEach((p, i) => setTimeout(() => downloadBytes(p.bytes, p.name), i * 150))
+  async function downloadAllAsZip(parts: SplitPart[]) {
+    setZipping(true)
+    try {
+      const zip = new JSZip()
+      for (const p of parts) zip.file(p.name, p.bytes)
+      const blob = await zip.generateAsync({ type: 'blob' })
+      downloadBlob(blob, `${staged?.file.name.replace(/\.pdf$/i, '') ?? 'split'}.zip`)
+    } finally {
+      setZipping(false)
+    }
   }
 
   const modeReady = mode === 'each' || (mode === 'span' && span >= 1) || (mode === 'ranges' && rangesText.trim() !== '')
@@ -207,7 +221,9 @@ export default function SplitTool() {
             ))}
           </ol>
           {status.parts.length > 1 && (
-            <button onClick={() => downloadAll(status.parts)}>Download All</button>
+            <button onClick={() => downloadAllAsZip(status.parts)} disabled={zipping}>
+              {zipping ? 'Zipping…' : 'Download All'}
+            </button>
           )}
         </div>
       )}

@@ -6,12 +6,16 @@
 // bytes and never anything it parses.
 //
 // This file is UI + choreography only. The actual mechanics live in
-// web/src/lib/p2p/: SignalingClient (the WebSocket), PeerLink (RTCPeerConnection
-// + trickle ICE), transfer.ts (chunking, backpressure, the header/accept/
-// reject/end control protocol, and the optional password layer from
-// crypto.ts). See transfer.ts's header comment for the specific V1
-// departures still left from the doc (whole-file-in-memory rather than
-// IndexedDB, single file per transfer) — documented there, not silently cut.
+// web/src/lib/p2p/: SignalingClient (the WebSocket) or BroadcastSignalingClient
+// (the same-browser, no-server shortcut — same SignalTransport interface, a
+// checkbox on each panel picks which one), PeerLink (RTCPeerConnection +
+// trickle ICE over either transport), ManualLink (the copy-paste fallback for
+// when neither transport can reach the other side at all — vanilla ICE,
+// surfaced only after a signaling connection actually fails), transfer.ts
+// (chunking, backpressure, the header/accept/reject/end control protocol,
+// gzip, and the optional password layer from crypto.ts). See transfer.ts's
+// header comment for the one V1 departure still left from the doc (whole
+// file in memory rather than IndexedDB) — documented there, not silently cut.
 //
 // The password field is optional and off by default. Per docs/tools/
 // p2p-share.md, it defends against a compromised signaling server, not
@@ -26,13 +30,16 @@
 
 import { useRef, useState } from 'react'
 import { XIcon } from '../../components/icons'
+import { BroadcastSignalingClient } from '../../lib/p2p/BroadcastSignalingClient'
 import { formatBytes } from '../../lib/device'
 import { downloadBlob } from '../../lib/download'
 import { WrongPasswordError } from '../../lib/p2p/crypto'
 import { signalingUrl } from '../../lib/p2p/config'
+import { ManualLink } from '../../lib/p2p/ManualLink'
 import { PeerLink } from '../../lib/p2p/PeerLink'
 import type { FileHeader, SignalErrorCode } from '../../lib/p2p/protocol'
 import { SignalingClient } from '../../lib/p2p/SignalingClient'
+import type { SignalTransport } from '../../lib/p2p/SignalTransport'
 import {
   receiveFiles,
   sendFiles,
@@ -58,6 +65,9 @@ const ICE_FAILED_MESSAGE =
 type SendStatus =
   | { kind: 'idle' }
   | { kind: 'connecting' }
+  | { kind: 'signal-unreachable' }
+  | { kind: 'manual-generating' }
+  | { kind: 'manual-offer'; code: string }
   | { kind: 'waiting'; code: string }
   | { kind: 'linking' }
   | { kind: 'offering' }
@@ -68,6 +78,10 @@ type SendStatus =
 type ReceiveStatus =
   | { kind: 'idle' }
   | { kind: 'joining' }
+  | { kind: 'signal-unreachable' }
+  | { kind: 'manual-paste' }
+  | { kind: 'manual-generating' }
+  | { kind: 'manual-answer'; code: string }
   | { kind: 'waiting' }
   | { kind: 'incoming'; header: FileHeader }
   | { kind: 'receiving'; fileIndex: number; fileCount: number; received: number; total: number }
@@ -98,9 +112,13 @@ export default function P2PShareTool() {
 function SendPanel({ onReset }: { onReset: () => void }) {
   const [files, setFiles] = useState<File[]>([])
   const [password, setPassword] = useState('')
+  const [sameBrowser, setSameBrowser] = useState(false)
   const [status, setStatus] = useState<SendStatus>({ kind: 'idle' })
-  const signaling = useRef<SignalingClient | null>(null)
+  const [manualAnswerInput, setManualAnswerInput] = useState('')
+  const signaling = useRef<SignalTransport | null>(null)
   const link = useRef<PeerLink | null>(null)
+  const manualLink = useRef<ManualLink | null>(null)
+  const manualDc = useRef<RTCDataChannel | null>(null)
   const cancelled = useRef(false)
 
   function addFiles(list: FileList | null) {
@@ -115,8 +133,58 @@ function SendPanel({ onReset }: { onReset: () => void }) {
   function cleanup() {
     link.current?.close()
     signaling.current?.close()
+    manualLink.current?.close()
     link.current = null
     signaling.current = null
+    manualLink.current = null
+    manualDc.current = null
+  }
+
+  /** Shared by both paths (signaling-relayed and manual-paste) — once a data
+   * channel exists and opens, sending a batch looks identical either way. */
+  function beginSending(dc: RTCDataChannel) {
+    dc.onopen = () => {
+      setStatus({ kind: 'offering' })
+      sendFiles(
+        dc,
+        files,
+        (fileIndex, sent, total) =>
+          setStatus({ kind: 'transferring', fileIndex, fileCount: files.length, sent, total }),
+        () => cancelled.current,
+        password || undefined,
+      )
+        .then(() => setStatus({ kind: 'done' }))
+        .catch((err: unknown) => {
+          if (err instanceof TransferRejectedError) setStatus({ kind: 'error', message: err.message })
+          else if (err instanceof TransferCancelledError) setStatus({ kind: 'error', message: 'Cancelled.' })
+          else setStatus({ kind: 'error', message: 'Transfer failed.' })
+        })
+    }
+  }
+
+  /** The manual-paste fallback, per docs/tools/p2p-share.md's edge-case
+   * table — only reachable after the signaling server has already failed.
+   * See ManualLink's own header for why this has to block on full ICE
+   * gathering instead of trickling candidates. */
+  async function startManual() {
+    cancelled.current = false
+    setStatus({ kind: 'manual-generating' })
+    const ml = new ManualLink()
+    manualLink.current = ml
+    ml.onState = (s) => {
+      if (s === 'failed') setStatus({ kind: 'error', message: ICE_FAILED_MESSAGE })
+    }
+    const { dc, code } = await ml.createOfferCode()
+    manualDc.current = dc
+    setStatus({ kind: 'manual-offer', code })
+  }
+
+  function connectManual(answerCode: string) {
+    setStatus({ kind: 'linking' })
+    void manualLink.current
+      ?.applyAnswerCode(answerCode)
+      .then(() => beginSending(manualDc.current!))
+      .catch(() => setStatus({ kind: 'error', message: "That code doesn't look right. Check it and try again." }))
   }
 
   async function start() {
@@ -124,12 +192,12 @@ function SendPanel({ onReset }: { onReset: () => void }) {
     cancelled.current = false
     setStatus({ kind: 'connecting' })
 
-    const sig = new SignalingClient()
+    const sig: SignalTransport = sameBrowser ? new BroadcastSignalingClient() : new SignalingClient()
     signaling.current = sig
     try {
       await sig.connect(signalingUrl())
     } catch {
-      setStatus({ kind: 'error', message: 'Could not reach the signaling server. Is it running?' })
+      setStatus({ kind: 'signal-unreachable' })
       return
     }
 
@@ -166,23 +234,7 @@ function SendPanel({ onReset }: { onReset: () => void }) {
         setStatus({ kind: 'linking' })
         void (async () => {
           const dc = await pl.startAsSender()
-          dc.onopen = () => {
-            setStatus({ kind: 'offering' })
-            sendFiles(
-              dc,
-              files,
-              (fileIndex, sent, total) =>
-                setStatus({ kind: 'transferring', fileIndex, fileCount: files.length, sent, total }),
-              () => cancelled.current,
-              password || undefined,
-            )
-              .then(() => setStatus({ kind: 'done' }))
-              .catch((err: unknown) => {
-                if (err instanceof TransferRejectedError) setStatus({ kind: 'error', message: err.message })
-                else if (err instanceof TransferCancelledError) setStatus({ kind: 'error', message: 'Cancelled.' })
-                else setStatus({ kind: 'error', message: 'Transfer failed.' })
-              })
-          }
+          beginSending(dc)
         })()
       })
     })
@@ -242,16 +294,65 @@ function SendPanel({ onReset }: { onReset: () => void }) {
               point.
             </p>
           )}
+          <p>
+            <label>
+              <input type="checkbox" checked={sameBrowser} onChange={(e) => setSameBrowser(e.target.checked)} />{' '}
+              Same browser, different tab (skips the signaling server entirely)
+            </label>
+          </p>
           <div className="actions">
             <button onClick={start} disabled={files.length === 0}>
               Create Room
             </button>
             <button onClick={onReset}>Back</button>
           </div>
+          <p className="muted">
+            No signaling server available?{' '}
+            <button onClick={startManual} disabled={files.length === 0} style={{ padding: 0 }}>
+              Connect directly by pasting codes.
+            </button>
+          </p>
         </>
       )}
 
       {status.kind === 'connecting' && <p className="muted">Connecting to the signaling server…</p>}
+
+      {status.kind === 'signal-unreachable' && (
+        <div className="result">
+          <p className="err">Could not reach the signaling server. Is it running?</p>
+          <p className="muted">
+            You can still connect directly by pasting a connection code back and forth — slower to set up, but needs
+            no server at all.
+          </p>
+          <div className="actions">
+            <button onClick={startManual}>Connect Without a Server</button>
+            <button onClick={onReset}>Back</button>
+          </div>
+        </div>
+      )}
+
+      {status.kind === 'manual-generating' && <p className="muted">Generating a connection code…</p>}
+
+      {status.kind === 'manual-offer' && (
+        <div className="result">
+          <p className="muted">Send this code to the other person (chat, email, read it aloud — anything works):</p>
+          <textarea readOnly value={status.code} rows={4} style={{ width: '100%', fontFamily: 'monospace' }} />
+          <p className="muted">Then paste the answer code they send back:</p>
+          <textarea
+            value={manualAnswerInput}
+            onChange={(e) => setManualAnswerInput(e.target.value)}
+            rows={4}
+            style={{ width: '100%', fontFamily: 'monospace' }}
+            placeholder="Paste their answer code here"
+          />
+          <div className="actions">
+            <button onClick={() => connectManual(manualAnswerInput)} disabled={!manualAnswerInput.trim()}>
+              Connect
+            </button>
+            <button onClick={onReset}>Back</button>
+          </div>
+        </div>
+      )}
 
       {status.kind === 'waiting' && (
         <div className="result">
@@ -302,18 +403,65 @@ function SendPanel({ onReset }: { onReset: () => void }) {
 
 function ReceivePanel({ onReset }: { onReset: () => void }) {
   const [code, setCode] = useState('')
+  const [sameBrowser, setSameBrowser] = useState(false)
   const [status, setStatus] = useState<ReceiveStatus>({ kind: 'idle' })
-  const signaling = useRef<SignalingClient | null>(null)
+  const signaling = useRef<SignalTransport | null>(null)
   const link = useRef<PeerLink | null>(null)
+  const manualLink = useRef<ManualLink | null>(null)
   const decision = useRef<((decision: OfferDecision) => void) | null>(null)
   const fileCount = useRef(1)
   const [incomingPassword, setIncomingPassword] = useState('')
+  const [manualOfferInput, setManualOfferInput] = useState('')
 
   function cleanup() {
     link.current?.close()
     signaling.current?.close()
+    manualLink.current?.close()
     link.current = null
     signaling.current = null
+    manualLink.current = null
+  }
+
+  /** Shared by both paths (signaling-relayed and manual-paste) — once the
+   * data channel arrives, receiving a batch looks identical either way. */
+  function beginReceiving(dc: RTCDataChannel) {
+    void receiveFiles(
+      dc,
+      (header) =>
+        new Promise<OfferDecision>((resolve) => {
+          fileCount.current = header.batchTotal
+          decision.current = resolve
+          setStatus({ kind: 'incoming', header })
+        }),
+      (fileIndex, received, total) =>
+        setStatus({ kind: 'receiving', fileIndex, fileCount: fileCount.current, received, total }),
+    )
+      .then((files) => setStatus({ kind: 'done', files }))
+      .catch((err: unknown) => {
+        if (err instanceof TransferRejectedError) setStatus({ kind: 'idle' })
+        else if (err instanceof TransferCancelledError) setStatus({ kind: 'error', message: 'The sender cancelled.' })
+        else if (err instanceof WrongPasswordError) setStatus({ kind: 'error', message: 'Wrong password.' })
+        else setStatus({ kind: 'error', message: 'Transfer failed.' })
+      })
+  }
+
+  /** The manual-paste fallback's receiver half — reachable only after
+   * signaling has already failed to connect. See SendPanel's startManual/
+   * ManualLink's own header for the matching sender-side flow. */
+  async function generateManualAnswer(offerCode: string) {
+    setStatus({ kind: 'manual-generating' })
+    const ml = new ManualLink()
+    manualLink.current = ml
+    ml.onState = (s) => {
+      if (s === 'failed') setStatus({ kind: 'error', message: ICE_FAILED_MESSAGE })
+    }
+    ml.onChannel = beginReceiving
+    try {
+      const answerCode = await ml.acceptOfferCode(offerCode)
+      setStatus({ kind: 'manual-answer', code: answerCode })
+    } catch {
+      setStatus({ kind: 'error', message: "That code doesn't look right. Check it and try again." })
+    }
   }
 
   async function start() {
@@ -321,12 +469,12 @@ function ReceivePanel({ onReset }: { onReset: () => void }) {
     if (!trimmed) return
     setStatus({ kind: 'joining' })
 
-    const sig = new SignalingClient()
+    const sig: SignalTransport = sameBrowser ? new BroadcastSignalingClient() : new SignalingClient()
     signaling.current = sig
     try {
       await sig.connect(signalingUrl())
     } catch {
-      setStatus({ kind: 'error', message: 'Could not reach the signaling server. Is it running?' })
+      setStatus({ kind: 'signal-unreachable' })
       return
     }
 
@@ -351,26 +499,7 @@ function ReceivePanel({ onReset }: { onReset: () => void }) {
           setStatus((cur) => (cur.kind === 'done' ? cur : { kind: 'error', message: 'The other side disconnected.' }))
         }
       }
-      pl.onChannel = (dc) => {
-        void receiveFiles(
-          dc,
-          (header) =>
-            new Promise<OfferDecision>((resolve) => {
-              fileCount.current = header.batchTotal
-              decision.current = resolve
-              setStatus({ kind: 'incoming', header })
-            }),
-          (fileIndex, received, total) =>
-            setStatus({ kind: 'receiving', fileIndex, fileCount: fileCount.current, received, total }),
-        )
-          .then((files) => setStatus({ kind: 'done', files }))
-          .catch((err: unknown) => {
-            if (err instanceof TransferRejectedError) setStatus({ kind: 'idle' })
-            else if (err instanceof TransferCancelledError) setStatus({ kind: 'error', message: 'The sender cancelled.' })
-            else if (err instanceof WrongPasswordError) setStatus({ kind: 'error', message: 'Wrong password.' })
-            else setStatus({ kind: 'error', message: 'Transfer failed.' })
-          })
-      }
+      pl.onChannel = beginReceiving
       pl.startAsReceiver()
     })
   }
@@ -407,16 +536,72 @@ function ReceivePanel({ onReset }: { onReset: () => void }) {
               />
             </label>
           </p>
+          <p>
+            <label>
+              <input type="checkbox" checked={sameBrowser} onChange={(e) => setSameBrowser(e.target.checked)} />{' '}
+              Same browser, different tab (skips the signaling server entirely)
+            </label>
+          </p>
           <div className="actions">
             <button onClick={start} disabled={!code.trim()}>
               Connect
             </button>
             <button onClick={onReset}>Back</button>
           </div>
+          <p className="muted">
+            Got a connection code from the sender instead of a room code?{' '}
+            <button onClick={() => setStatus({ kind: 'manual-paste' })} style={{ padding: 0 }}>
+              Paste it here.
+            </button>
+          </p>
         </>
       )}
 
       {status.kind === 'joining' && <p className="muted">Connecting…</p>}
+
+      {status.kind === 'signal-unreachable' && (
+        <div className="result">
+          <p className="err">Could not reach the signaling server. Is it running?</p>
+          <p className="muted">
+            You can still connect directly by pasting a connection code back and forth — slower to set up, but needs
+            no server at all.
+          </p>
+          <div className="actions">
+            <button onClick={() => setStatus({ kind: 'manual-paste' })}>Paste a Connection Code</button>
+            <button onClick={onReset}>Back</button>
+          </div>
+        </div>
+      )}
+
+      {status.kind === 'manual-paste' && (
+        <div className="result">
+          <p className="muted">Paste the connection code the sender gave you:</p>
+          <textarea
+            value={manualOfferInput}
+            onChange={(e) => setManualOfferInput(e.target.value)}
+            rows={4}
+            style={{ width: '100%', fontFamily: 'monospace' }}
+            placeholder="Paste their offer code here"
+          />
+          <div className="actions">
+            <button onClick={() => generateManualAnswer(manualOfferInput)} disabled={!manualOfferInput.trim()}>
+              Generate Answer
+            </button>
+            <button onClick={onReset}>Back</button>
+          </div>
+        </div>
+      )}
+
+      {status.kind === 'manual-generating' && <p className="muted">Generating a connection code…</p>}
+
+      {status.kind === 'manual-answer' && (
+        <div className="result">
+          <p className="muted">Send this code back to the sender to complete the connection:</p>
+          <textarea readOnly value={status.code} rows={4} style={{ width: '100%', fontFamily: 'monospace' }} />
+          <p className="muted">Once they paste it in, the transfer will start automatically.</p>
+        </div>
+      )}
+
       {status.kind === 'waiting' && <p className="muted">Connected. Waiting for the sender…</p>}
 
       {status.kind === 'incoming' && (

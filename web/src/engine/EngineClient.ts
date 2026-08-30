@@ -207,6 +207,51 @@ export class EngineClient {
   ) {
     return this.#call<Uint8Array>('imagesToPDF', opts, images, onProgress)
   }
+
+  /**
+   * Stamps text onto every page, or a selection. `onTop: true` draws over
+   * page content (a "stamp"); `false` draws behind it (a true watermark).
+   * `rotation` is always sent explicitly — 0 means horizontal, not "use
+   * pdfcpu's diagonal default". See docs/tools/add-watermark.md.
+   */
+  addWatermark(
+    file: ArrayBuffer,
+    opts: {
+      text: string
+      selection?: string[]
+      fontSize: number
+      color: string
+      position: string
+      rotation: number
+      opacity: number
+      onTop: boolean
+      password?: string
+    },
+    onProgress?: ProgressFn,
+  ) {
+    return this.#call<Uint8Array>('addWatermark', opts, [file], onProgress)
+  }
+
+  /**
+   * Strips watermarks pdfcpu itself (or anything using the same
+   * /Artifact-tagged form-XObject mechanism) can recognise. `selection` uses
+   * pdfcpu's raw page-selection tokens — ranges, `even`, `odd`, `!` exclusion
+   * — with no special handling needed on this side. See
+   * docs/tools/remove-watermark.md.
+   */
+  removeWatermark(
+    file: ArrayBuffer,
+    opts: { selection?: string[]; password?: string },
+    onProgress?: ProgressFn,
+  ) {
+    return this.#call<Uint8Array>('removeWatermark', opts, [file], onProgress)
+  }
+
+  /** Cheap pre-flight check, same role as isEncrypted/pageCount: answer a
+   * question before the user commits to running removal. */
+  hasWatermarks(file: ArrayBuffer, password = '') {
+    return this.#call<boolean>('hasWatermarks', { password }, [file])
+  }
 }
 
 /** Shared instance. One engine worker per tab is the intended shape. */

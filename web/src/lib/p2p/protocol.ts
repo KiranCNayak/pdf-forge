@@ -49,6 +49,12 @@ export interface FileHeader {
    * not the plaintext file. The receiver needs a password before it can even
    * attempt decryption, let alone verify sha256. */
   encrypted: boolean
+  /** True if the content was gzipped (via CompressionStream) before any
+   * encryption. Only set when compression actually made the bytes smaller —
+   * see transfer.ts's gzipIfSmaller. Order on the wire is always
+   * encrypt(gzip(plaintext)), so the receiver must decrypt first, then
+   * decompress, mirroring the sender exactly in reverse. */
+  compressed: boolean
   /** 1-based position of this file within its transfer batch. */
   batchIndex: number
   /** Total files in this batch. 1 for an ordinary single-file transfer — every

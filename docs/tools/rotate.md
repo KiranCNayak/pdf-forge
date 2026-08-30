@@ -12,13 +12,22 @@ selected pages by 90/180/270.
 **Shipped** (`web/src/tools/Rotate/tool.tsx`): pick one of 90°/180°/270°, apply to all
 pages or a typed page selection.
 
-**Deferred:**
+**Deferred, decided against building here:**
 
-- Thumbnail grid with per-page rotate buttons and CSS-preview — needs the render worker
-  (`web/src/lib/render/`, built but not yet wired into any tool). A text field stands in
-  for page selection meanwhile.
+- Thumbnail grid with per-page rotate buttons and CSS-preview. The render worker this
+  needed didn't exist when this doc was first written; it does now
+  (`web/src/lib/render/`), and `web/src/tools/OrganizePages` already builds exactly this
+  UI — a thumbnail grid with per-page rotate, wired to the render worker for previews and
+  the `organize` Go op to apply. Building a second, Rotate-specific thumbnail grid would
+  duplicate that surface for the one case it doesn't already cover (rotating everything,
+  or a typed range, by a single angle) — which the current text-field selection already
+  handles directly and more quickly than clicking through thumbnails would. Revisit only
+  if user feedback specifically asks for visual rotation on this route rather than a
+  detour through Organize.
 - Mixed per-page rotations (different pages by different amounts in one submit) — one
-  rotation value applies to the whole selection per call.
+  rotation value applies to the whole selection per call. `OrganizePages`'s per-page
+  rotate button covers this case today; folding it into Rotate itself would need the same
+  thumbnail grid just deferred above.
 
 ## User flow
 

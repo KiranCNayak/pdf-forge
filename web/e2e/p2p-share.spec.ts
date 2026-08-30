@@ -100,6 +100,132 @@ test('sends multiple files in one batch, one accept covers all of them', async (
   }
 })
 
+test('same-browser shortcut pairs two tabs over BroadcastChannel, no signaling server involved', async ({
+  browser,
+}) => {
+  // One context, two pages — BroadcastChannel only bridges tabs sharing a
+  // storage partition, same as it would for two real tabs in one browser.
+  // Unlike the other tests here, this never touches playwright.config.ts's
+  // signaling webServer at all.
+  const ctx = await browser.newContext()
+  const sender = await ctx.newPage()
+  const receiver = await ctx.newPage()
+
+  try {
+    await sender.goto('/#/p2p-share')
+    await sender.getByRole('button', { name: /^send a file$/i }).click()
+    await sender.locator('input[type="file"]').setInputFiles(fixture('sample-a.pdf'))
+    await sender.getByLabel(/same browser, different tab/i).check()
+    await sender.getByRole('button', { name: /^create room$/i }).click()
+
+    const codeLocator = sender.locator('p').filter({ hasText: ROOM_CODE })
+    await expect(codeLocator).toBeVisible({ timeout: 15_000 })
+    const code = (await codeLocator.textContent())!.trim()
+    expect(code).toMatch(ROOM_CODE)
+
+    await receiver.goto('/#/p2p-share')
+    await receiver.getByRole('button', { name: /^receive a file$/i }).click()
+    await receiver.getByLabel(/room code/i).fill(code)
+    await receiver.getByLabel(/same browser, different tab/i).check()
+    await receiver.getByRole('button', { name: /^connect$/i }).click()
+
+    await expect(receiver.getByText(/^incoming: sample-a\.pdf/i)).toBeVisible({ timeout: 15_000 })
+    await receiver.getByRole('button', { name: /^accept$/i }).click()
+
+    await expect(sender.getByText(/^sent ·/i)).toBeVisible({ timeout: 15_000 })
+    await expect(receiver.getByText(/integrity verified/i)).toBeVisible({ timeout: 15_000 })
+  } finally {
+    await ctx.close()
+  }
+})
+
+test('manual-paste fallback connects two tabs with no signaling server at all', async ({ browser }) => {
+  // Both sides reach this from their idle screen directly ("No signaling
+  // server available?" / "Got a connection code instead?") — it doesn't
+  // require an actual signaling failure to exercise, same as production
+  // usage doesn't require the server to be down before someone tries it.
+  const ctx = await browser.newContext()
+  const sender = await ctx.newPage()
+  const receiver = await ctx.newPage()
+
+  try {
+    await sender.goto('/#/p2p-share')
+    await sender.getByRole('button', { name: /^send a file$/i }).click()
+    await sender.locator('input[type="file"]').setInputFiles(fixture('sample-a.pdf'))
+    await sender.getByRole('button', { name: /^connect directly by pasting codes\.$/i }).click()
+
+    const offerBox = sender.locator('textarea[readonly]')
+    await expect(offerBox).toBeVisible({ timeout: 15_000 })
+    const offerCode = await offerBox.inputValue()
+    expect(offerCode.length).toBeGreaterThan(0)
+
+    await receiver.goto('/#/p2p-share')
+    await receiver.getByRole('button', { name: /^receive a file$/i }).click()
+    await receiver.getByRole('button', { name: /^paste it here\.$/i }).click()
+    await receiver.getByPlaceholder(/paste their offer code here/i).fill(offerCode)
+    await receiver.getByRole('button', { name: /^generate answer$/i }).click()
+
+    const answerBox = receiver.locator('textarea[readonly]')
+    await expect(answerBox).toBeVisible({ timeout: 15_000 })
+    const answerCode = await answerBox.inputValue()
+    expect(answerCode.length).toBeGreaterThan(0)
+
+    await sender.getByPlaceholder(/paste their answer code here/i).fill(answerCode)
+    await sender.getByRole('button', { name: /^connect$/i }).click()
+
+    await expect(receiver.getByText(/^incoming: sample-a\.pdf/i)).toBeVisible({ timeout: 15_000 })
+    await receiver.getByRole('button', { name: /^accept$/i }).click()
+
+    await expect(sender.getByText(/^sent ·/i)).toBeVisible({ timeout: 15_000 })
+    await expect(receiver.getByText(/integrity verified/i)).toBeVisible({ timeout: 15_000 })
+  } finally {
+    await ctx.close()
+  }
+})
+
+test('a highly-compressible file round-trips correctly through the gzip path', async ({ browser }) => {
+  // transfer.ts only gzips when the result comes out smaller (see
+  // gzipIfSmaller) — sample-a/b.pdf are too small and already partly
+  // FlateDecode-compressed to ever take that path, so this test manufactures
+  // a payload that will: 200 KB of one repeated byte compresses to almost
+  // nothing. There's no UI signal for "compression happened" to assert on
+  // directly, but a wrong gzip/gunzip implementation would corrupt the bytes
+  // and fail the sha256 check below — that's the real thing worth guarding.
+  const ctx = await browser.newContext()
+  const sender = await ctx.newPage()
+  const receiver = await ctx.newPage()
+
+  try {
+    await sender.goto('/#/p2p-share')
+    await sender.getByRole('button', { name: /^send a file$/i }).click()
+    await sender.locator('input[type="file"]').setInputFiles({
+      name: 'compressible.txt',
+      mimeType: 'text/plain',
+      buffer: Buffer.alloc(200 * 1024, 'a'),
+    })
+    await sender.getByLabel(/same browser, different tab/i).check()
+    await sender.getByRole('button', { name: /^create room$/i }).click()
+
+    const codeLocator = sender.locator('p').filter({ hasText: ROOM_CODE })
+    await expect(codeLocator).toBeVisible({ timeout: 15_000 })
+    const code = (await codeLocator.textContent())!.trim()
+
+    await receiver.goto('/#/p2p-share')
+    await receiver.getByRole('button', { name: /^receive a file$/i }).click()
+    await receiver.getByLabel(/room code/i).fill(code)
+    await receiver.getByLabel(/same browser, different tab/i).check()
+    await receiver.getByRole('button', { name: /^connect$/i }).click()
+
+    await expect(receiver.getByText(/^incoming: compressible\.txt/i)).toBeVisible({ timeout: 15_000 })
+    await receiver.getByRole('button', { name: /^accept$/i }).click()
+
+    await expect(sender.getByText(/^sent ·/i)).toBeVisible({ timeout: 15_000 })
+    await expect(receiver.getByText(/integrity verified/i)).toBeVisible({ timeout: 15_000 })
+  } finally {
+    await ctx.close()
+  }
+})
+
 test('a wrong password is reported distinctly on an encrypted transfer', async ({ browser }) => {
   const senderCtx = await browser.newContext()
   const receiverCtx = await browser.newContext()

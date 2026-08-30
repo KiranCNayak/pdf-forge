@@ -12,8 +12,15 @@
 //    ArrayBuffers into an array and Blob()s them at the end. Correct and
 //    fully verified for realistic file sizes; revisit if huge transfers turn
 //    out to matter.
-//  - No gzip via CompressionStream, no pause/resume control frames beyond
-//    cancel.
+//  - No pause/resume control frames beyond cancel.
+//
+// gzip IS implemented (gzipIfSmaller/gunzip below, via CompressionStream/
+// DecompressionStream) and kept only when it actually shrinks the file —
+// most PDFs are already partly compressed internally, so gzip on top loses
+// more often than it wins, which is why this is a runtime check per file,
+// not a blanket "always compress". Wire order is always encrypt(gzip(x)),
+// so the receiver reverses it: decrypt, then decompress, then verify sha256
+// against the original (pre-gzip) plaintext.
 //
 // Sequential multi-file transfer (sendFiles/receiveFiles below) is built as a
 // thin orchestration layer on top of the single-file primitives, not a
@@ -44,6 +51,26 @@ export async function sha256Hex(buffer: ArrayBuffer): Promise<string> {
   return Array.from(new Uint8Array(digest))
     .map((b) => b.toString(16).padStart(2, '0'))
     .join('')
+}
+
+async function pipeThroughStream(buffer: ArrayBuffer, stream: TransformStream): Promise<ArrayBuffer> {
+  const source = new Blob([buffer]).stream().pipeThrough(stream)
+  return new Response(source).arrayBuffer()
+}
+
+/** Gzips `plaintext` via CompressionStream and keeps the result only if it's
+ * actually smaller — most PDFs are already partly compressed internally
+ * (FlateDecode streams, JPEG images), so gzip on top sometimes loses. Returns
+ * null when compression isn't worth it, so the caller can fall back to
+ * sending the original bytes untouched. Per docs/tools/p2p-share.md's
+ * "Transfer" section. */
+async function gzipIfSmaller(plaintext: ArrayBuffer): Promise<ArrayBuffer | null> {
+  const compressed = await pipeThroughStream(plaintext, new CompressionStream('gzip'))
+  return compressed.byteLength < plaintext.byteLength ? compressed : null
+}
+
+function gunzip(compressed: ArrayBuffer): Promise<ArrayBuffer> {
+  return pipeThroughStream(compressed, new DecompressionStream('gzip'))
 }
 
 function sendControl(dc: RTCDataChannel, msg: ChannelControl) {
@@ -100,7 +127,9 @@ export async function sendFile(
 
   const plaintext = await file.arrayBuffer()
   const sha256 = await sha256Hex(plaintext)
-  const wireBuffer = password ? await encryptBytes(plaintext, password) : plaintext
+  const gzipped = await gzipIfSmaller(plaintext)
+  const content = gzipped ?? plaintext
+  const wireBuffer = password ? await encryptBytes(content, password) : content
 
   const header: FileHeader = {
     name: file.name,
@@ -108,6 +137,7 @@ export async function sendFile(
     mime: file.type || 'application/octet-stream',
     sha256,
     encrypted: !!password,
+    compressed: !!gzipped,
     batchIndex,
     batchTotal,
   }
@@ -183,7 +213,8 @@ async function assembleReceivedFile(
   password: string | undefined,
 ): Promise<ReceivedFile> {
   const wireBuffer = await new Blob(chunks).arrayBuffer()
-  const plaintext = header.encrypted ? await decryptBytes(wireBuffer, password ?? '') : wireBuffer
+  const decrypted = header.encrypted ? await decryptBytes(wireBuffer, password ?? '') : wireBuffer
+  const plaintext = header.compressed ? await gunzip(decrypted) : decrypted
   const actual = await sha256Hex(plaintext)
   const blob = new Blob([plaintext], { type: header.mime })
   return { blob, header, verified: actual === header.sha256 }

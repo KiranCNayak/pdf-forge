@@ -123,6 +123,34 @@ export async function smoke(): Promise<string> {
     `${target.resultSize} bytes`,
   )
 
+  const wm = await engine.addWatermark(await fixture('sample-a.pdf'), {
+    text: 'DRAFT',
+    fontSize: 24,
+    color: 'gray',
+    position: 'c',
+    rotation: 0,
+    opacity: 0.5,
+    onTop: true,
+  })
+  check(
+    'add watermark returns a valid PDF',
+    wm.byteLength > 0 && (await engine.pageCount(wm.slice().buffer)) === 3,
+    `${wm.byteLength} bytes`,
+  )
+
+  const noWm = await engine.hasWatermarks(await fixture('sample-a.pdf'))
+  check('hasWatermarks false on a plain file', noWm === false)
+
+  const removed = await engine.removeWatermark(wm.slice().buffer, {})
+  const stillHasWm = await engine.hasWatermarks(removed.slice().buffer)
+  check(
+    'remove watermark round trip',
+    removed.byteLength > 0 && stillHasWm === false && (await engine.pageCount(removed.slice().buffer)) === 3,
+  )
+
+  const noOp = await engine.removeWatermark(await fixture('sample-a.pdf'), {})
+  check('remove watermark on a plain file is a no-op, not ERR_INTERNAL', noOp.byteLength > 0)
+
   const failed = results.filter((r) => !r.ok)
   const lines = [
     ...results.map((r) => `${r.ok ? 'PASS' : 'FAIL'}  ${r.name}${r.detail ? `  (${r.detail})` : ''}`),

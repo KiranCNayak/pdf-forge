@@ -40,13 +40,46 @@ now regression-tested by `web/e2e/p2p-share.spec.ts`'s multi-file spec:
   ended before a file header arrived." Fixed by resetting synchronously in the `'header'`
   handler itself, not asynchronously after the prior file finishes.
 
+**gzip** (`transfer.ts`'s `gzipIfSmaller`/`gunzip`, via `CompressionStream`/
+`DecompressionStream`) is now implemented and kept only when it actually shrinks the
+file — most PDFs are already partly compressed internally (FlateDecode streams, JPEG
+images), so gzip on top loses more often than it wins, which is why this is a per-file
+runtime check, not a blanket setting. Wire order is always `encrypt(gzip(plaintext))`;
+the receiver reverses it (decrypt, then decompress) before checking sha256 against the
+original plaintext. Verified in `web/e2e/p2p-share.spec.ts` with a synthetic
+200 KB highly-compressible payload — there's no UI signal for "compression happened" to
+assert on directly, so the test leans on the fact that a broken gzip/gunzip pairing would
+corrupt the bytes and fail the sha256 check, which is the thing actually worth guarding.
+
+**The `BroadcastChannel` same-tab shortcut** is implemented
+(`web/src/lib/p2p/BroadcastSignalingClient.ts`) as a second `SignalTransport`
+implementation alongside `SignalingClient` — same external shape (`connect`/`onMessage`/
+`onClose`/`send`/`close`), so `PeerLink` and `P2PShareTool` needed no branching beyond a
+checkbox picking which one to `new`. There is no server-side process to pair "create" and
+"join" over a `BroadcastChannel`, so the class simulates just enough of that locally:
+whichever instance sent `create` remembers its own generated code, watches the channel for
+a matching `join`, and replies `joined` (broadcast, for the joiner) plus `peer-joined`
+(delivered directly to itself) — from `PeerLink`'s point of view, indistinguishable from
+the real server doing the same two things over a socket. Verified with two pages in one
+browser context (real tabs share a `BroadcastChannel`; separate Playwright contexts, being
+separate storage partitions, deliberately do not — see the spec's own comment).
+
+**The manual-paste fallback** is implemented (`web/src/lib/p2p/ManualLink.ts`), reachable
+from either panel's idle screen without needing to fake a real signaling failure first —
+"No signaling server available? Connect directly by pasting codes." on Send, "Got a
+connection code from the sender instead of a room code? Paste it here." on Receive.
+Mechanically this is ihatepdf's own `Te`/`De` base64-the-whole-SDP scheme from Part 1
+below — genuinely the right tool for a truly server-less path — scoped down to only the
+cases neither `SignalingClient` nor `BroadcastSignalingClient` can cover. Unlike
+`PeerLink`, there's no channel to relay a late ICE candidate on, so this blocks on
+`iceGatheringState === 'complete'` (7 s timeout, same as ihatepdf's own) rather than
+trickling. Verified end-to-end in `web/e2e/p2p-share.spec.ts`: full offer-code → answer-code
+→ transfer round trip with zero signaling-server involvement.
+
 **Deferred:**
 
 - IndexedDB assembly — V1 buffers the whole file in memory on both ends. See
   `web/src/lib/p2p/transfer.ts`'s header for what a correct chunked version needs.
-- gzip via `CompressionStream`.
-- The `BroadcastChannel` same-tab shortcut.
-- The manual-paste fallback for when the signaling server is unreachable.
 - Production deployment — V1 was only run against `go run ./cmd/signaling` locally, not
   Fly.io. `VITE_SIGNALING_URL` (`web/.env.example`) needs a real URL before this ships.
 - QR code for the room code (text only, for now).

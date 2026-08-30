@@ -50,7 +50,9 @@ type EncryptParams struct {
     UserPW      string `json:"userPW"`
     OwnerPW     string `json:"ownerPW"`
     KeyLength   int    `json:"keyLength"`   // 256 (default) | 128 | 40
-    Permissions int16  `json:"permissions"` // model.PermissionFlags bitfield
+    Permissions int32  `json:"permissions"` // model.PermissionFlags bitfield — int16
+                                             // overflowed the UI's own PERMISSIONS_NONE
+                                             // base value; see this doc's Status section
 }
 
 func Encrypt(input []byte, p EncryptParams) ([]byte, error)
@@ -69,7 +71,9 @@ err := api.Encrypt(bytes.NewReader(input), &out, conf)
 ```
 
 Verified against pdfcpu v0.15.0 `model.Configuration`: `EncryptUsingAES bool`,
-`EncryptKeyLength int` (AES: 40/128/256), `Permissions PermissionFlags` (int16).
+`EncryptKeyLength int` (AES: 40/128/256), `Permissions PermissionFlags` (backed by `int`,
+which is why `EncryptParams.Permissions` is `int32` on our side, not the `int16` an
+earlier version of this doc showed — see Status).
 
 **Always AES-256.** RC4 is broken and 128-bit AES is only worth exposing for
 compatibility with very old readers — and if we do expose it, the UI must say why it's

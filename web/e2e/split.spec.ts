@@ -25,6 +25,12 @@ test('splits every page into its own file', async ({ page }) => {
     parts.first().getByRole('button', { name: /^download$/i }).click(),
   ])
   expect(download.suggestedFilename()).toBeTruthy()
+
+  const [zipDownload] = await Promise.all([
+    page.waitForEvent('download'),
+    page.getByRole('button', { name: /^download all$/i }).click(),
+  ])
+  expect(zipDownload.suggestedFilename()).toMatch(/\.zip$/)
 })
 
 test('ranges mode requires non-empty ranges text', async ({ page }) => {

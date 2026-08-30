@@ -23,7 +23,7 @@ export interface ToolMeta {
   /** One line, shown under the heading. */
   description: string
   /** Grouping in the navigation, mirroring docs/TOOL_CATALOG.md. */
-  category: 'Organize' | 'Convert' | 'Security' | 'Share' | 'Optimize'
+  category: 'Organize' | 'Convert' | 'Security' | 'Share' | 'Optimize' | 'Annotate'
   /** Hidden from navigation while under construction. */
   draft?: boolean
 }
@@ -58,7 +58,14 @@ for (const t of tools) {
   seen.add(t.route)
 }
 
-export const categories: ToolMeta['category'][] = ['Organize', 'Convert', 'Security', 'Share', 'Optimize']
+export const categories: ToolMeta['category'][] = [
+  'Organize',
+  'Convert',
+  'Security',
+  'Share',
+  'Optimize',
+  'Annotate',
+]
 
 export function findTool(route: string): Tool | undefined {
   return tools.find((t) => t.route === route)

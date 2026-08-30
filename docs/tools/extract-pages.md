@@ -15,10 +15,16 @@ from PDF" and "split PDF" are distinct searches with distinct expectations.
 **Shipped** (`web/src/tools/ExtractPages/tool.tsx`): typed page selection
 (`1-3, 5, 8-12`), extract → download.
 
-**Deferred:**
+**Deferred, decided against building here:**
 
-- Click-to-select page thumbnails — needs the render worker, same as Rotate. Selection
-  is text-only for now.
+- Click-to-select page thumbnails. The render worker this needed didn't exist when this
+  doc was first written; it does now (`web/src/lib/render/`), and `OrganizePages` already
+  gives a visual, thumbnail-driven way to arrive at an arbitrary subset of pages (delete
+  the ones you don't want, apply). Extract Pages' whole reason for a separate route is the
+  SEO/intent split from Split (see Purpose above) — a typed selection is faster than
+  clicking through thumbnails for the "I know the page numbers" search that route target,
+  and OrganizePages already exists for the "let me look and pick" case. Revisit only if
+  user feedback specifically asks for it on this route.
 
 ## User flow
 

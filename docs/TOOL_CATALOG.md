@@ -70,22 +70,23 @@ Ghostscript (font subsetting — see `docs/LLD.md` §3.4).
 
 Everything pdfcpu can do that we didn't need for V1, plus the annotation surface.
 
-| Tool              | Route              | Engine | pdfcpu API / approach                                                                                     |
-| ----------------- | ------------------ | ------ | --------------------------------------------------------------------------------------------------------- |
-| Add watermark     | `/add-watermark`   | Go     | `api.AddWatermarks`, `api.TextWatermark`, `api.ImageWatermarkForReader`                                   |
-| Page numbers      | `/page-numbers`    | Go     | `api.AddWatermarks` with positioned text                                                                  |
-| Headers & footers | `/headers-footers` | Go     | same mechanism as page numbers                                                                            |
-| Crop & resize     | `/crop-resize-pdf` | Go     | `api.Crop`, `api.Resize`                                                                                  |
-| Flatten PDF       | `/flatten-pdf`     | Go     | `api.RemoveFormFields` + annotation flattening                                                            |
-| Fill PDF form     | `/fill-pdf-form`   | Hybrid | pdfcpu form API; pdf.js to render field positions                                                         |
-| Sign PDF          | `/sign-pdf`        | Hybrid | Canvas signature capture → image stamp via watermark API                                                  |
-| Edit PDF text     | `/edit-pdf-text`   | Hybrid | Hardest tool on the list. Requires content-stream rewriting plus font matching. Treat as its own project  |
-| Redact PDF        | `/redact-pdf`      | Go     | Must _remove_ the content stream text, not draw a black box over it. Anything less is a security defect   |
-| Invert colours    | `/invert-pdf`      | Go     | Rewrite colour operators in content streams                                                               |
-| Repair PDF        | `/repair-pdf`      | Go     | pdfcpu's validation/xref-reconstruction is already strong. **Not an AI tool** despite ihatepdf's grouping |
-| Compare PDFs      | `/compare-pdfs`    | JS     | Synced side-by-side rendering + text diff. **Also not an AI tool**                                        |
-| Privacy scanner   | `/privacy-scanner` | Go     | Enumerate `/Info`, XMP, annotations, embedded files, JS actions                                           |
-| Fingerprint PDF   | `/fingerprint-pdf` | Go     | Per-recipient invisible marks for leak attribution                                                        |
+| Tool              | Route               | Engine | pdfcpu API / approach                                                                                                                                                                                                                                                                                      |
+| ----------------- | ------------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Add watermark     | `/add-watermark`    | Go     | `api.AddWatermarks`, `api.TextWatermark`, `api.ImageWatermarkForReader`                                                                                                                                                                                                                                    |
+| Remove watermark  | `/remove-watermark` | Go     | `api.RemoveWatermarks`, `api.HasWatermarks` for pre-flight detection. Not in ihatepdf's own catalog — added because a watermark someone else stamped onto a PDF is exactly the kind of thing this tool otherwise handles (encrypt has a remove-password counterpart; watermark deserves the same symmetry) |
+| Page numbers      | `/page-numbers`     | Go     | `api.AddWatermarks` with positioned text                                                                                                                                                                                                                                                                   |
+| Headers & footers | `/headers-footers`  | Go     | same mechanism as page numbers                                                                                                                                                                                                                                                                             |
+| Crop & resize     | `/crop-resize-pdf`  | Go     | `api.Crop`, `api.Resize`                                                                                                                                                                                                                                                                                   |
+| Flatten PDF       | `/flatten-pdf`      | Go     | `api.RemoveFormFields` + annotation flattening                                                                                                                                                                                                                                                             |
+| Fill PDF form     | `/fill-pdf-form`    | Hybrid | pdfcpu form API; pdf.js to render field positions                                                                                                                                                                                                                                                          |
+| Sign PDF          | `/sign-pdf`         | Hybrid | Canvas signature capture → image stamp via watermark API                                                                                                                                                                                                                                                   |
+| Edit PDF text     | `/edit-pdf-text`    | Hybrid | Hardest tool on the list. Requires content-stream rewriting plus font matching. Treat as its own project                                                                                                                                                                                                   |
+| Redact PDF        | `/redact-pdf`       | Go     | Must _remove_ the content stream text, not draw a black box over it. Anything less is a security defect                                                                                                                                                                                                    |
+| Invert colours    | `/invert-pdf`       | Go     | Rewrite colour operators in content streams                                                                                                                                                                                                                                                                |
+| Repair PDF        | `/repair-pdf`       | Go     | pdfcpu's validation/xref-reconstruction is already strong. **Not an AI tool** despite ihatepdf's grouping                                                                                                                                                                                                  |
+| Compare PDFs      | `/compare-pdfs`     | JS     | Synced side-by-side rendering + text diff. **Also not an AI tool**                                                                                                                                                                                                                                         |
+| Privacy scanner   | `/privacy-scanner`  | Go     | Enumerate `/Info`, XMP, annotations, embedded files, JS actions                                                                                                                                                                                                                                            |
+| Fingerprint PDF   | `/fingerprint-pdf`  | Go     | Per-recipient invisible marks for leak attribution                                                                                                                                                                                                                                                         |
 
 > ihatepdf files Repair and Compare under "AI Tools". Neither uses AI. Repair is xref
 > reconstruction; Compare is rendering plus text diff. We categorise them by what they
@@ -180,8 +181,10 @@ part of the product. Include only if that market becomes a deliberate target.
 | Phase 1 (V1a + V1b) | 7     |
 | Phase 2             | 5     |
 | Phase 3             | 2     |
-| Phase 4             | 29    |
+| Phase 4             | 30    |
 | Deferred            | 11    |
 | Non-tools           | 3     |
 
-V1 ships 12 tools. The full in-scope target is 43.
+V1 ships 12 tools. The full in-scope target is 44 — Remove Watermark was added after this
+table was first written (see its own row above for why), one more than the count this
+doc originally shipped with.

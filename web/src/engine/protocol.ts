@@ -26,6 +26,9 @@ export type OpName =
   | 'compress'
   | 'organize'
   | 'imagesToPDF'
+  | 'addWatermark'
+  | 'removeWatermark'
+  | 'hasWatermarks'
 
 export interface Request {
   id: string

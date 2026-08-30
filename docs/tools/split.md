@@ -10,14 +10,15 @@ _cut this document up_, extract means _give me these pages as one file_.
 ## Status
 
 **Shipped** (`web/src/tools/Split/tool.tsx`): every-page, every-N-pages, and by-ranges
-modes; per-part downloads plus a "download all" button.
+modes; per-part downloads plus a "Download All" that zips the whole result with `jszip`.
+The zip dependency this doc originally deferred adding is no longer a fresh decision —
+`PdfToZip` added it first (with direct user go-ahead), so Split just reuses what's already
+in the bundle rather than re-litigating the choice.
 
 **Deferred:**
 
 - "At page numbers" mode (cut before pages 5, 12, 30) — not implemented; only
   each/span/ranges exist today.
-- ZIP download — parts download individually (staggered) instead. No zip dependency has
-  been added; flag before adding one, per `docs/PARALLEL.md`.
 
 ## User flow
 
@@ -69,15 +70,15 @@ the buffers come back, so the ZIP itself never occupies the Go heap.
 
 ## Edge cases
 
-| Case                           | Behaviour                                                                                       |
-| ------------------------------ | ----------------------------------------------------------------------------------------------- |
-| Range beyond page count        | Reject at input validation, showing the actual count                                            |
-| Empty / malformed range string | Inline validation error, never `ERR_INTERNAL`                                                   |
-| Ranges overlap                 | Allowed — a page may appear in several outputs                                                  |
-| Result is one part             | Still valid; return it directly rather than zipping                                             |
-| 500-page "every page" split    | 500 buffers. Batch the transfer back and stream into the ZIP; do not hold all in memory at once |
-| Encrypted input                | `ERR_ENCRYPTED`, prompt for password                                                            |
-| Bookmarks/outlines             | Split parts lose the global outline. Note it in the UI                                          |
+| Case                           | Behaviour                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Range beyond page count        | Reject at input validation, showing the actual count                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| Empty / malformed range string | Inline validation error, never `ERR_INTERNAL`                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| Ranges overlap                 | Allowed — a page may appear in several outputs                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| Result is one part             | Still valid; return it directly rather than zipping                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| 500-page "every page" split    | **As shipped, not as originally designed here:** `engine.split()` is one RPC call that returns all `SplitPart`s at once (`EngineClient.split`), not a batched/streamed transfer — so a 500-page split holds all 500 output buffers in the Wasm heap, then in JS, then again inside JSZip before `generateAsync()`. Fine at realistic sizes (same "measure before optimizing" stance as the rest of this doc's memory sections); revisit with a real batching pass if a large real-world split turns out to matter |
+| Encrypted input                | `ERR_ENCRYPTED`, prompt for password                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| Bookmarks/outlines             | Split parts lose the global outline. Note it in the UI                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 
 ## UI states
 

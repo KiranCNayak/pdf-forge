@@ -11,8 +11,9 @@
 // payloads pass through as opaque `unknown` for PeerLink to interpret.
 
 import type { SignalEnvelope } from './protocol'
+import type { SignalTransport } from './SignalTransport'
 
-export class SignalingClient {
+export class SignalingClient implements SignalTransport {
   #ws: WebSocket | null = null
   #messageHandlers = new Set<(env: SignalEnvelope) => void>()
   #closeHandlers = new Set<() => void>()
