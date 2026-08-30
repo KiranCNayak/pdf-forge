@@ -89,31 +89,6 @@ func AddWatermark(input []byte, p WatermarkParams, prog Progress) ([]byte, error
 	return out.Bytes(), nil
 }
 
-// requireSelectionResolvesToPages guards against pdfcpu's own AddWatermarks/
-// RemoveWatermarks silently no-oping when a selection resolves to zero pages
-// (e.g. every token out of range) rather than erroring — fine for its CLI,
-// confusing here: a user who asked for a change and got an unmodified file
-// back deserves a reason, not silence. Same posture as ExtractPages'
-// "resolves to zero pages" check. A no-op selection (nil/empty, meaning "all
-// pages") always passes — there's nothing to resolve.
-func requireSelectionResolvesToPages(input []byte, selection []string, password string) error {
-	if len(selection) == 0 {
-		return nil
-	}
-	total, err := api.PageCount(bytes.NewReader(input), confWithPassword(password))
-	if err != nil {
-		return bridge.Wrap(classifyAuth(err, password), err, "could not read page count")
-	}
-	pages, err := api.PagesForPageSelection(total, selection, true, false)
-	if err != nil {
-		return bridge.Wrap(bridge.CodeInvalid, err, "invalid page selection")
-	}
-	if len(pages) == 0 {
-		return bridge.Errf(bridge.CodeUnsupported, "page selection resolves to no pages")
-	}
-	return nil
-}
-
 // ------------------------------------------------------------- remove watermark
 
 // RemoveWatermarkParams configures RemoveWatermark. See docs/tools/remove-watermark.md.

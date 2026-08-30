@@ -13,6 +13,7 @@ import (
 	"bytes"
 	"io"
 
+	"github.com/pdfcpu/pdfcpu/pkg/api"
 	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu/model"
 
 	"github.com/kirancnayak/pdf-forge/engine/internal/bridge"
@@ -68,6 +69,33 @@ func readers(inputs [][]byte) []io.ReadSeeker {
 func requireNonEmpty(input []byte, what string) error {
 	if len(input) == 0 {
 		return bridge.Errf(bridge.CodeInvalid, "%s is empty", what)
+	}
+	return nil
+}
+
+// requireSelectionResolvesToPages guards against several pdfcpu APIs
+// (AddWatermarks, RemoveWatermarks, and by extension anything else built on
+// PagesForPageSelection) silently no-oping when a selection resolves to zero
+// pages — e.g. every token out of range — rather than erroring. Fine for a
+// CLI, confusing here: a user who asked for a change and got an unmodified
+// file back deserves a reason, not silence. Same posture as ExtractPages'
+// own "resolves to zero pages" check, generalised once a second and third op
+// (Crop, Resize) needed the identical guard. A no-op selection (nil/empty,
+// meaning "all pages") always passes — there's nothing to resolve.
+func requireSelectionResolvesToPages(input []byte, selection []string, password string) error {
+	if len(selection) == 0 {
+		return nil
+	}
+	total, err := api.PageCount(bytes.NewReader(input), confWithPassword(password))
+	if err != nil {
+		return bridge.Wrap(classifyAuth(err, password), err, "could not read page count")
+	}
+	pages, err := api.PagesForPageSelection(total, selection, true, false)
+	if err != nil {
+		return bridge.Wrap(bridge.CodeInvalid, err, "invalid page selection")
+	}
+	if len(pages) == 0 {
+		return bridge.Errf(bridge.CodeUnsupported, "page selection resolves to no pages")
 	}
 	return nil
 }

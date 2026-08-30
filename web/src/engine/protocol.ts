@@ -29,6 +29,8 @@ export type OpName =
   | 'addWatermark'
   | 'removeWatermark'
   | 'hasWatermarks'
+  | 'crop'
+  | 'resize'
 
 export interface Request {
   id: string

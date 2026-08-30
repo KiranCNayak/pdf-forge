@@ -252,6 +252,40 @@ export class EngineClient {
   hasWatermarks(file: ArrayBuffer, password = '') {
     return this.#call<boolean>('hasWatermarks', { password }, [file])
   }
+
+  /**
+   * Sets /CropBox via a margin definition relative to the existing media
+   * box. Does not touch page content — see docs/tools/crop-resize.md.
+   */
+  crop(
+    file: ArrayBuffer,
+    opts: {
+      top: number
+      right: number
+      bottom: number
+      left: number
+      selection?: string[]
+      password?: string
+    },
+    onProgress?: ProgressFn,
+  ) {
+    return this.#call<Uint8Array>('crop', opts, [file], onProgress)
+  }
+
+  /**
+   * Scales /MediaBox and page content — an actual reflow, unlike crop's
+   * viewport-only change. See docs/tools/crop-resize.md.
+   */
+  resize(
+    file: ArrayBuffer,
+    opts:
+      | { mode: 'scale'; scale: number; selection?: string[]; password?: string }
+      | { mode: 'pageSize'; pageSize: string; selection?: string[]; password?: string }
+      | { mode: 'dimensions'; width: number; height: number; selection?: string[]; password?: string },
+    onProgress?: ProgressFn,
+  ) {
+    return this.#call<Uint8Array>('resize', opts, [file], onProgress)
+  }
 }
 
 /** Shared instance. One engine worker per tab is the intended shape. */
