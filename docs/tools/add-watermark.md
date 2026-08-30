@@ -16,7 +16,10 @@ different design — deferred here to keep the first Phase 4 tool's scope tight.
 See [remove-watermark](remove-watermark.md) for the inverse operation — same file,
 `engine/internal/ops/watermark.go`, separate route and doc, same reasoning
 [remove-password](remove-password.md) has its own doc apart from
-[encrypt](encrypt.md).
+[encrypt](encrypt.md). See [page-numbers](page-numbers.md) and
+[headers-footers](headers-footers.md) for two tools that reuse this exact op with no new
+engine code at all — pdfcpu's own `%p`/`%P` page-number tokens work inside the plain
+`text` field already.
 
 ## Status
 

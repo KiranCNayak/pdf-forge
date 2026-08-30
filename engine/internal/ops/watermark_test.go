@@ -111,6 +111,26 @@ func TestAddWatermarkRejectsSelectionResolvingToZeroPages(t *testing.T) {
 	assertCode(t, err, bridge.CodeUnsupported)
 }
 
+// pdfcpu substitutes %p{offset}/%P/%t/%v tokens per page INSIDE
+// AddWatermarks itself (pkg/pdfcpu/format.Text, called once per page during
+// rendering) — AddWatermark forwards p.Text verbatim and needs no code of
+// its own to support this. That's what lets Page Numbers and Headers &
+// Footers (web/src/tools/PageNumbers, web/src/tools/HeadersFooters) exist as
+// pure UI layers over this exact op, with zero new engine code. This test
+// exists so a future pdfcpu upgrade that changes or removes that behaviour
+// fails here first, not silently in the UI.
+func TestAddWatermarkSupportsPageNumberTokens(t *testing.T) {
+	src := makePDF(t, 3)
+	p := validWatermarkParams("Page %p0 of %P")
+	out, err := AddWatermark(src, p, nil)
+	if err != nil {
+		t.Fatalf("add watermark with page-number tokens: %v", err)
+	}
+	if got := mustPageCount(t, out, ""); got != 3 {
+		t.Fatalf("page count changed: got %d", got)
+	}
+}
+
 func TestAddWatermarkOnEncryptedInputRequiresPassword(t *testing.T) {
 	src := makePDF(t, 2)
 	encrypted, err := Encrypt(src, EncryptParams{UserPW: "s3cret", OwnerPW: "s3cret", KeyLength: 256}, nil)
