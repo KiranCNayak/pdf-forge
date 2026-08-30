@@ -25,6 +25,7 @@
 // doc's exact honest message, not a spinner that hangs forever.
 
 import { useRef, useState } from 'react'
+import { XIcon } from '../../components/icons'
 import { formatBytes } from '../../lib/device'
 import { downloadBlob } from '../../lib/download'
 import { WrongPasswordError } from '../../lib/p2p/crypto'
@@ -215,7 +216,7 @@ function SendPanel({ onReset }: { onReset: () => void }) {
                   <span className="muted">{formatBytes(f.size)}</span>
                   <span className="controls">
                     <button onClick={() => removeAt(i)} aria-label="Remove">
-                      ✕
+                      <XIcon />
                     </button>
                   </span>
                 </li>

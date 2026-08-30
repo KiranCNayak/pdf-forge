@@ -17,15 +17,29 @@
 }
 :focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: 4px; }
 * { box-sizing: border-box; }
-body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.55 ui-sans-serif,system-ui,-apple-system,sans-serif; }
+/* 'Geist Sans'/'Geist Mono' are self-hosted (main.tsx imports @fontsource/geist-*,
+   bundled by Vite — no runtime CDN fetch). The system stack stays as fallback,
+   not a replacement, in case a build ever ships without the font bundled. */
+body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.55 'Geist Sans',ui-sans-serif,system-ui,-apple-system,sans-serif; }
 main { max-width:44rem; margin:0 auto; padding:2rem 1.25rem 4rem; }
-h1 { font-size:1.5rem; margin:0 0 .25rem; letter-spacing:-.02em; }
-h2 { font-size:1.15rem; margin:2rem 0 .25rem; }
+/* Skip link: hidden off-screen until focused, first focusable element in the
+   shell. Standard pattern — this app has a persistent left nav worth skipping
+   past on every page for keyboard users. */
+.skip-link {
+  position:absolute; left:-999px; top:auto; width:1px; height:1px; overflow:hidden;
+  padding:.6rem 1rem; background:var(--accent); color:var(--accent-fg); border-radius:6px;
+  font-weight:600; text-decoration:none; z-index:10;
+}
+.skip-link:focus {
+  left:1rem; top:1rem; width:auto; height:auto; overflow:visible;
+}
+h1 { font-size:1.5rem; margin:0 0 .25rem; letter-spacing:-.02em; text-wrap:balance; }
+h2 { font-size:1.15rem; margin:2rem 0 .25rem; text-wrap:balance; }
 header { border-bottom:1px solid var(--line); padding-bottom:1rem; }
-.muted { color:var(--muted); font-size:.9rem; }
+.muted { color:var(--muted); font-size:.9rem; font-variant-numeric:tabular-nums; }
 .err { color:var(--err); }
 .warn { color:var(--warn); }
-code { font:.85em ui-monospace,SFMono-Regular,Menlo,monospace; background:color-mix(in srgb, var(--fg) 8%, transparent); padding:.1em .35em; border-radius:3px; }
+code { font:.85em 'Geist Mono',ui-monospace,SFMono-Regular,Menlo,monospace; background:color-mix(in srgb, var(--fg) 8%, transparent); padding:.1em .35em; border-radius:3px; }
 /* FilePicker — dashed drop zone wrapping a real <input type=file>. The input
    stays present and keyboard/screen-reader operable (visually hidden, not
    display:none); drag-and-drop is an addition on top of it, not a
@@ -33,13 +47,14 @@ code { font:.85em ui-monospace,SFMono-Regular,Menlo,monospace; background:color-
 .file-picker {
   position:relative; display:flex; flex-direction:column; align-items:center; gap:.35rem; text-align:center;
   margin:1rem 0; padding:2rem 1rem; border:1.5px dashed var(--line); border-radius:10px;
-  cursor:pointer; color:var(--muted); transition: border-color 150ms, background-color 150ms, color 150ms;
+  cursor:pointer; color:var(--muted); transition: border-color 180ms, background-color 180ms, color 180ms, transform 100ms;
 }
 .file-picker:hover { border-color:var(--fg); color:var(--fg); }
 .file-picker:has(input:focus-visible) { box-shadow:var(--focus-ring); border-color:var(--accent-line); }
+.file-picker:active { transform:translateY(1px); }
 .file-picker--drag { border-color:var(--accent-line); background:color-mix(in srgb, var(--accent) 8%, transparent); color:var(--fg); }
 .file-picker__icon { color:inherit; }
-.file-picker__label { font-weight:500; color:var(--fg); }
+.file-picker__label { font-weight:500; color:var(--fg); text-wrap:balance; }
 .file-picker__hint { font-size:.82rem; }
 .file-picker input[type=file] {
   position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden;
@@ -52,22 +67,43 @@ ol.files .controls { grid-row:1/3; display:flex; align-items:center; gap:.25rem;
 button {
   font:inherit; padding:.55rem .9rem; min-height:2.5rem; border:1px solid var(--line);
   border-radius:6px; background:transparent; color:var(--fg); cursor:pointer;
-  transition: border-color 150ms, background-color 150ms, color 150ms;
+  transition: border-color 180ms, background-color 180ms, color 180ms, transform 100ms;
 }
 button:hover:not(:disabled) { border-color:var(--fg); }
+button:active:not(:disabled) { transform:translateY(1px); }
 button:disabled { opacity:.4; cursor:not-allowed; }
 .controls button { padding:.15rem .45rem; min-height:auto; }
 .actions { display:flex; gap:.5rem; margin:1rem 0; }
+/* Escape hatch from the :first-child accent rule below, for an .actions group
+   that isn't THE primary action — e.g. OrganizePages' Undo/Redo/Reset row,
+   which sits above its own separate Apply .actions group. Without this,
+   :first-child accents BOTH Undo and Apply, contradicting the comment two
+   rules down ("exactly one accent target to look for"). */
+/* .actions.actions--plain (both classes in the selector), not just
+   .actions--plain — same specificity as .actions button:first-child below
+   otherwise, and losing on source order since that rule comes later. */
+.actions.actions--plain button:first-child { background:transparent; border-color:var(--line); color:var(--fg); font-weight:400; }
+.actions.actions--plain button:first-child:hover:not(:disabled) { border-color:var(--fg); filter:none; }
 /* The one primary CTA per screen — Merge/Split/Rotate/etc.'s main action button
    and the post-run Download button. Everything else (Cancel, ↑/↓/✕) stays the
-   plain outline style so there's exactly one accent target to look for. */
-.actions button:first-child, .result button {
+   plain outline style so there's exactly one accent target to look for.
+   Scoped to DIRECT children of .result (or the first child of a nested
+   .actions group) rather than every button inside .result — Compress/Split/
+   PdfToImage's per-file Download buttons live inside .result ol.files li
+   .controls, several levels deep, and an unscoped .result button rule made
+   every one of them accent-green alongside "Download All", three solid
+   green buttons stacked with no hierarchy at all. */
+.actions button:first-child, .result > button, .result > .actions button:first-child {
   background:var(--accent); border-color:var(--accent-line); color:var(--accent-fg); font-weight:600;
 }
-.actions button:first-child:hover:not(:disabled), .result button:hover:not(:disabled) {
+.actions button:first-child:hover:not(:disabled),
+.result > button:hover:not(:disabled),
+.result > .actions button:first-child:hover:not(:disabled) {
   border-color:var(--accent-line); filter:brightness(1.08);
 }
-.result { margin-top:1rem; padding:1rem; border:1px solid var(--line); border-radius:8px; }
+/* Tinted, not pure-black, shadow — a hint of elevation without breaking the
+   flat Swiss-minimal surface treatment used everywhere else. */
+.result { margin-top:1rem; padding:1rem; border:1px solid var(--line); border-radius:8px; box-shadow:0 1px 2px color-mix(in srgb, var(--fg) 6%, transparent); }
 
 /* shell layout */
 .shell { max-width:60rem; margin:0 auto; padding:2rem 1.25rem 4rem; display:grid; grid-template-columns:12rem 1fr; grid-template-areas:"header header" "nav main"; gap:0 2.5rem; }
@@ -78,12 +114,18 @@ button:disabled { opacity:.4; cursor:not-allowed; }
 .brand { font-size:1.5rem; font-weight:700; letter-spacing:-.02em; color:inherit; text-decoration:none; display:inline-block; }
 nav h3 { font-size:.72rem; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); margin:1.25rem 0 .4rem; }
 nav ul { list-style:none; margin:0; padding:0; }
-nav li a { display:block; padding:.2rem 0; color:var(--fg); text-decoration:none; font-size:.92rem; opacity:.8; }
+nav li a { display:block; padding:.2rem 0; color:var(--fg); text-decoration:none; font-size:.92rem; font-weight:500; opacity:.8; }
 nav li a:hover { opacity:1; text-decoration:underline; }
 nav li a[aria-current=page] { opacity:1; font-weight:600; }
-ul.cards { list-style:none; padding:0; display:grid; gap:.6rem; }
-ul.cards a { display:block; padding:.8rem 1rem; border:1px solid var(--line); border-radius:8px; text-decoration:none; color:inherit; }
-ul.cards a:hover { border-color:var(--fg); }
+/* Multi-column catalog on wide viewports, one column on narrow ones — no
+   separate media query needed, auto-fill handles both. */
+ul.cards { list-style:none; padding:0; display:grid; grid-template-columns:repeat(auto-fill, minmax(15rem, 1fr)); gap:.75rem; }
+ul.cards a {
+  display:block; padding:.8rem 1rem; border:1px solid var(--line); border-radius:8px;
+  text-decoration:none; color:inherit; transition: border-color 180ms, box-shadow 180ms, transform 100ms;
+}
+ul.cards a:hover { border-color:var(--fg); box-shadow:0 2px 6px color-mix(in srgb, var(--fg) 8%, transparent); }
+ul.cards a:active { transform:translateY(1px); }
 ul.cards strong { display:block; margin-bottom:.15rem; }
 
 /* Lane B: split / extractPages / rotate / encrypt / decrypt tool pages */

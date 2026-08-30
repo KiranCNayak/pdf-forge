@@ -15,6 +15,7 @@
 
 import { useState } from 'react'
 import { FilePicker } from '../../components/FilePicker'
+import { XIcon } from '../../components/icons'
 import { engine } from '../../engine/EngineClient'
 import { EngineError, type CompressResult } from '../../engine/protocol'
 import { checkBudget, deviceCaps, estimateEngineBytes, formatBytes } from '../../lib/device'
@@ -150,7 +151,7 @@ export default function CompressTool() {
               <span className="muted">{formatBytes(s.file.size)}</span>
               <span className="controls">
                 <button onClick={() => removeAt(i)} aria-label="Remove">
-                  ✕
+                  <XIcon />
                 </button>
               </span>
             </li>

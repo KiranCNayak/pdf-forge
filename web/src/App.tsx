@@ -4,7 +4,7 @@
 // filesystem. Adding a tool must never require editing here. See
 // docs/PARALLEL.md.
 
-import { Suspense } from 'react'
+import { Suspense, useRef, type MouseEvent } from 'react'
 import { href, useRoute } from './lib/router'
 import { categories, findTool, tools } from './tools/registry'
 
@@ -60,9 +60,23 @@ function Home() {
 export function App() {
   const route = useRoute()
   const tool = route ? findTool(route) : undefined
+  const mainRef = useRef<HTMLElement>(null)
+
+  // Not a plain #main-content href: this app's hash IS the router (lib/router.ts),
+  // so setting location.hash to anything other than a real route would make the
+  // router try to find a tool named "main-content" and show "Not found" instead
+  // of just moving focus. Focus the target directly instead.
+  function skipToContent(e: MouseEvent) {
+    e.preventDefault()
+    mainRef.current?.focus()
+  }
 
   return (
     <div className="shell">
+      <a href="#main-content" className="skip-link" onClick={skipToContent}>
+        Skip to content
+      </a>
+
       <header>
         <a href="#/" className="brand">
           pdf-forge
@@ -72,7 +86,7 @@ export function App() {
 
       <Nav route={route} />
 
-      <main>
+      <main id="main-content" ref={mainRef} tabIndex={-1}>
         {!route && <Home />}
 
         {route && !tool && (

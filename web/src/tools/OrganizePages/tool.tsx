@@ -26,6 +26,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { FilenameField } from '../../components/FilenameField'
 import { FilePicker } from '../../components/FilePicker'
+import { DuplicateIcon, RotateIcon, XIcon } from '../../components/icons'
 import { engine } from '../../engine/EngineClient'
 import { EngineError } from '../../engine/protocol'
 import { checkBudget, deviceCaps, estimateEngineBytes, formatBytes } from '../../lib/device'
@@ -287,7 +288,7 @@ export default function OrganizePagesTool() {
           {!budget.ok && budget.message && <p className="err">{budget.message}</p>}
           {budget.degrade && budget.message && <p className="warn">{budget.message}</p>}
 
-          <div className="actions">
+          <div className="actions actions--plain">
             <button onClick={undo} disabled={historyIndex === 0}>
               Undo
             </button>
@@ -360,13 +361,13 @@ export default function OrganizePagesTool() {
                   </p>
                   <span className="controls" style={{ justifyContent: 'center' }}>
                     <button onClick={() => rotateCard(i)} aria-label="Rotate">
-                      ↻
+                      <RotateIcon />
                     </button>
                     <button onClick={() => duplicateCard(i)} aria-label="Duplicate">
-                      ⧉
+                      <DuplicateIcon />
                     </button>
                     <button onClick={() => removeCard(i)} aria-label="Delete">
-                      ✕
+                      <XIcon />
                     </button>
                   </span>
                 </li>

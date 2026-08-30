@@ -16,6 +16,7 @@
 import { useState } from 'react'
 import { FilenameField } from '../../components/FilenameField'
 import { FilePicker } from '../../components/FilePicker'
+import { ArrowDownIcon, ArrowUpIcon, XIcon } from '../../components/icons'
 import { engine } from '../../engine/EngineClient'
 import { EngineError } from '../../engine/protocol'
 import { checkBudget, deviceCaps, estimateEngineBytes, formatBytes } from '../../lib/device'
@@ -106,13 +107,13 @@ export default function ImagesToPdfTool() {
               </span>
               <span className="controls">
                 <button onClick={() => move(i, -1)} disabled={i === 0} aria-label="Move up">
-                  ↑
+                  <ArrowUpIcon />
                 </button>
                 <button onClick={() => move(i, 1)} disabled={i === staged.length - 1} aria-label="Move down">
-                  ↓
+                  <ArrowDownIcon />
                 </button>
                 <button onClick={() => setStaged(staged.filter((_, j) => j !== i))} aria-label="Remove">
-                  ✕
+                  <XIcon />
                 </button>
               </span>
             </li>

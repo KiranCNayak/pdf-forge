@@ -36,7 +36,7 @@ Phase 0 is complete. The engine runs end-to-end in a browser.
 | `web/e2e/`                                                         | Playwright end-to-end tests: real Chromium, real Vite dev server, real `engine.wasm` (plus a real `signaling/` server for `p2p-share.spec.ts` — `playwright.config.ts`'s second `webServer` entry) — the layer above the browser smoke test, covering UI wiring (file pickers, staged-list reorder, option forms, downloads) that no unit test touches. 16 specs across every tool: `merge`, `split`, `extract-pages`, `rotate`, `compress`, `images-to-pdf`, `pdf-to-image`, `extract-text` (scanned-detection plus a real-text fixture, `web/e2e/fixtures/text-page.pdf`), `pdf-to-zip` (multi-page ZIP + single-page shortcut), `organize-pages` (rotate/duplicate/undo/redo/apply via button clicks — drag-reorder isn't exercised, see the spec's own header), `p2p-share` (two real browser contexts against one signaling server, unencrypted + wrong-password paths), an `encrypt` → `remove-password` round trip across two tools, and site-wide navigation. Caught two real bugs on its very first run — see "Things that will bite you" below. `npm run test:e2e`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | `signaling/`                                                       | WebSocket signaling server (Go module, `cmd/signaling`): room create/join/relay for SDP+ICE via `internal/hub`, per-IP rate limiting via `internal/wsserver`, Crockford-base32 room codes via `internal/roomcode`. 27 Go tests pass, gofmt clean, vet clean. Now consumed by `web/src/tools/P2PShare`. See `signaling/README.md`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 
-70 Go tests pass. TypeScript is clean. Production build works. 24 Playwright e2e tests
+70 Go tests pass. TypeScript is clean. Production build works. 26 Playwright e2e tests
 across 13 spec files pass (`web/e2e/`, `npm run test:e2e`) — every tool has at least one.
 `__smoke()` now has 12
 checks including compress, but has not actually been run in a browser since the compress
@@ -331,6 +331,67 @@ Verified: gofmt/vet/go test clean for engine (no Go touched), web typecheck + bu
 clean, full 25-test Playwright suite green, and a live browser check (byte-size strings
 render correctly with the embedded non-breaking space, theme-color meta tags present,
 zero console errors on Merge/P2P Share/Encrypt).
+
+**A visual redesign pass ran next** (`redesign-existing-projects` skill), plan at
+`/Users/kcn/.claude/plans/cuddly-sleeping-tiger.md` — user-approved before any code
+changed. The app already had a deliberate Swiss-minimal design system (`styles.css`'s
+own header comment), so most of the skill's generic-SaaS-site checklist didn't apply
+(no hero/pricing/testimonials to fix, the persistent left nav is correct information
+architecture for a 15-tool catalog, not a cliché). What did apply and got fixed:
+
+- **Typography**: bundled `@fontsource/geist-sans` + `@fontsource/geist-mono`
+  (latin-only weight files specifically — the un-scoped per-weight CSS pulls in
+  cyrillic/greek/vietnamese `@font-face` blocks this all-English app never needs;
+  switching cut the font CSS from 47.6 KB to 6.8 KB). Self-hosted via `main.tsx`
+  imports, no runtime CDN fetch. `text-wrap: balance` on headings,
+  `font-variant-numeric: tabular-nums` on `.muted` (covers the recurring `N/M`
+  progress fractions), weight 500 introduced for nav links.
+- **Interactive states**: `:active` press feedback (`translateY(1px)`, transform-only)
+  on buttons, `.file-picker`, and `ul.cards a`. Transition durations 150ms → 180ms.
+- **Home page**: `ul.cards` went from an implicit single column to
+  `repeat(auto-fill, minmax(15rem, 1fr))` — the ~13 tools now read as a catalog grid
+  on wide viewports, one column on narrow ones, no separate media query.
+- **Icons**: the reorder/remove/duplicate/rotate buttons (`Merge`, `ImagesToPdf`,
+  `Compress`, `P2PShare`, `OrganizePages`) used raw Unicode glyphs (↑ ↓ ✕ ⧉ ↻), which
+  render with different shapes/weights per OS. Replaced with a new
+  `web/src/components/icons.tsx` — five small inline SVGs matching `FilePicker`'s
+  existing icon style, `aria-hidden`, existing `aria-label`s untouched.
+- **Favicon** (`web/public/favicon.svg`, a minimal document mark in the accent green)
+  and a `<meta name="description">` — neither existed before.
+- **Skip-to-content link** — new for a nav-heavy site. Not a plain `href="#main-
+content"`: this app's hash _is_ the router (`lib/router.ts`), so a real hash
+  navigation to `#main-content` would make the router look for a tool by that name
+  and show "Not found" instead of just moving focus. The link's `onClick` calls
+  `preventDefault()` and focuses `<main>` (`tabIndex={-1}`) directly instead.
+  Regression-tested in `e2e/home.spec.ts`.
+
+**Two real, pre-existing button-hierarchy bugs surfaced during live verification**
+(not in the original plan — found by actually looking at the running app, not just
+reading the CSS):
+
+1. `OrganizePages`' Undo/Redo/Reset row and its separate Apply row are two different
+   `.actions` groups on the same page; the shared `.actions button:first-child` accent
+   rule made _both_ Undo and Apply solid green, contradicting the CSS's own comment
+   ("exactly one accent target to look for"). Fixed with a `.actions--plain` escape
+   hatch, applied only to the Undo/Redo/Reset row.
+2. `.result button` (no `:first-child` scoping) accented _every_ button inside a
+   `.result` box, not just the primary one. Invisible for single-button results, but
+   Compress/Split/PdfToImage's multi-file results nest a Download button per row
+   inside `ol.files li .controls`, several DOM levels deep — with 2 files staged, that
+   rendered three stacked solid-green buttons (two per-row Downloads plus "Download
+   All") with no hierarchy at all. Fixed by scoping to `.result > button` (or
+   `.result > .actions button:first-child` for the few results — `ExtractText`'s Copy
+   All/Download .txt — where the buttons sit inside a nested `.actions` div rather
+   than being direct children).
+
+Verified: same 26-test Playwright suite green (one new skip-link test added; icon
+swaps changed only decorative glyph children inside already-tested
+`aria-label`led buttons, so no existing selector needed updating), web typecheck +
+build clean (font assets bundle to ~150 KB of woff2, lazily fetched per `@font-face`
+only for glyphs actually rendered), gofmt/vet/go test clean for engine (no Go
+touched), and an extensive live browser pass across Home, Merge, OrganizePages, and
+Compress (multi-file) confirming the new icons/grid/fonts/button-hierarchy fixes all
+render correctly with zero console errors.
 
 **This work parallelises.** `docs/PARALLEL.md` defines four non-overlapping lanes —
 engine ops, tool UIs, signaling server, render pipeline — and the worktree flow for
