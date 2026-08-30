@@ -5,6 +5,7 @@ package wasmapi
 import (
 	"syscall/js"
 
+	"github.com/kirancnayak/pdf-forge/engine/internal/bridge"
 	"github.com/kirancnayak/pdf-forge/engine/internal/ops"
 )
 
@@ -19,6 +20,21 @@ func init() {
 			return nil, err
 		}
 		return Bytes(ops.AddWatermark(in, p, Progress(args)))
+	})
+
+	Register("addImageWatermark", func(args []js.Value) (any, error) {
+		p, err := Params[ops.ImageWatermarkParams](args)
+		if err != nil {
+			return nil, err
+		}
+		in, err := Inputs(args)
+		if err != nil {
+			return nil, err
+		}
+		if len(in) != 2 {
+			return nil, bridge.Errf(bridge.CodeInvalid, "expected 2 input buffers (pdf, image), got %d", len(in))
+		}
+		return Bytes(ops.AddImageWatermark(in[0], in[1], p, Progress(args)))
 	})
 
 	Register("removeWatermark", func(args []js.Value) (any, error) {

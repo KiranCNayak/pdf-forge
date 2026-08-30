@@ -239,6 +239,31 @@ export class EngineClient {
   }
 
   /**
+   * Stamps an image (a captured signature, a logo, a QR code, ...) onto
+   * selected pages, or all of them. `scale` is relative to page width,
+   * (0, 1] — an image has no natural point size the way text's `fontSize`
+   * does. See docs/tools/sign.md, which this op was built for but doesn't
+   * name in its own signature — any future "stamp an image" need can reuse
+   * it directly.
+   */
+  addImageWatermark(
+    file: ArrayBuffer,
+    image: ArrayBuffer,
+    opts: {
+      selection?: string[]
+      scale: number
+      position: string
+      rotation: number
+      opacity: number
+      onTop: boolean
+      password?: string
+    },
+    onProgress?: ProgressFn,
+  ) {
+    return this.#call<Uint8Array>('addImageWatermark', opts, [file, image], onProgress)
+  }
+
+  /**
    * Strips watermarks pdfcpu itself (or anything using the same
    * /Artifact-tagged form-XObject mechanism) can recognise. `selection` uses
    * pdfcpu's raw page-selection tokens — ranges, `even`, `odd`, `!` exclusion

@@ -89,6 +89,83 @@ func AddWatermark(input []byte, p WatermarkParams, prog Progress) ([]byte, error
 	return out.Bytes(), nil
 }
 
+// ------------------------------------------------------------- image watermark
+
+// ImageWatermarkParams configures AddImageWatermark. See docs/tools/sign.md —
+// this is the mechanism Sign is built on, not a Sign-specific op, so a future
+// tool needing "stamp an image onto a PDF" (a logo, a QR code, ...) can reuse
+// it directly.
+type ImageWatermarkParams struct {
+	// Selection is nil or empty for every page. Same raw pdfcpu token syntax
+	// as WatermarkParams.Selection.
+	Selection []string `json:"selection,omitempty"`
+	// Scale is relative to page width, (0, 1]. Unlike WatermarkParams'
+	// FontSize (an absolute point size), an image has no natural "size" of
+	// its own — pdfcpu's own scalefactor syntax treats <=1 as relative,
+	// which is what every caller of this op wants (a signature or stamp
+	// should scale with the page, not sit at a fixed pixel size regardless
+	// of whether the page is A4 or a business card).
+	Scale float64 `json:"scale"`
+	// Position is the same 9-point anchor keyword as WatermarkParams.
+	Position string `json:"position"`
+	// Rotation in degrees, -180..180. Always sent explicitly — same
+	// reasoning as WatermarkParams.Rotation.
+	Rotation float64 `json:"rotation"`
+	// Opacity in (0, 1].
+	Opacity  float64 `json:"opacity"`
+	OnTop    bool    `json:"onTop"`
+	Password string  `json:"password,omitempty"`
+}
+
+// AddImageWatermark stamps an image (PNG/JPEG) onto selected pages, or all of
+// them. Shares wmParamMap's desc-string syntax with AddWatermark — see
+// api.ImageWatermarkForReader in the vendored source: image and text
+// watermarks parse the identical "key:value, ..." format, just with
+// different keys actually in play (scalefactor instead of points/color).
+func AddImageWatermark(input, image []byte, p ImageWatermarkParams, prog Progress) ([]byte, error) {
+	if err := requireNonEmpty(input, "file"); err != nil {
+		return nil, err
+	}
+	if len(image) == 0 {
+		return nil, bridge.Errf(bridge.CodeInvalid, "image is empty")
+	}
+	if p.Scale <= 0 || p.Scale > 1 {
+		return nil, bridge.Errf(bridge.CodeInvalid, "scale must be between 0 (exclusive) and 1, got %v", p.Scale)
+	}
+	if p.Opacity <= 0 || p.Opacity > 1 {
+		return nil, bridge.Errf(bridge.CodeInvalid, "opacity must be between 0 (exclusive) and 1, got %v", p.Opacity)
+	}
+	if p.Rotation < -180 || p.Rotation > 180 {
+		return nil, bridge.Errf(bridge.CodeInvalid, "rotation must be between -180 and 180 degrees, got %v", p.Rotation)
+	}
+
+	if err := requireSelectionResolvesToPages(input, p.Selection, p.Password); err != nil {
+		return nil, err
+	}
+
+	position := p.Position
+	if position == "" {
+		position = "c"
+	}
+	desc := fmt.Sprintf("scalefactor:%g, position:%s, rotation:%g, opacity:%g",
+		p.Scale, position, p.Rotation, p.Opacity)
+
+	wm, err := api.ImageWatermarkForReader(bytes.NewReader(image), desc, p.OnTop, false, types.POINTS)
+	if err != nil {
+		return nil, bridge.Wrap(bridge.CodeInvalid, err, "invalid watermark configuration")
+	}
+
+	prog.report(0, 1, "stamping")
+
+	var out bytes.Buffer
+	if err := api.AddWatermarks(bytes.NewReader(input), &out, p.Selection, wm, confWithPassword(p.Password)); err != nil {
+		return nil, bridge.Wrap(classifyAuth(err, p.Password), err, "add image watermark failed")
+	}
+
+	prog.report(1, 1, "stamping")
+	return out.Bytes(), nil
+}
+
 // ------------------------------------------------------------- remove watermark
 
 // RemoveWatermarkParams configures RemoveWatermark. See docs/tools/remove-watermark.md.

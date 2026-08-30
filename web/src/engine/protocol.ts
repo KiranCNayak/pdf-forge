@@ -27,6 +27,7 @@ export type OpName =
   | 'organize'
   | 'imagesToPDF'
   | 'addWatermark'
+  | 'addImageWatermark'
   | 'removeWatermark'
   | 'hasWatermarks'
   | 'crop'

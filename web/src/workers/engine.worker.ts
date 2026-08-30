@@ -77,9 +77,10 @@ self.onmessage = async (e: MessageEvent<Request>) => {
     // Go's js.CopyBytesToGo needs a Uint8Array view, not a raw ArrayBuffer —
     // handing it a buffer silently copies zero bytes.
     const views = buffers.map((b) => new Uint8Array(b))
-    // Every op takes one buffer except these two, which take a list — same
-    // shape as Go's [][]byte params (MergeParams, ImagesToPDFParams).
-    const multiBuffer = op === 'merge' || op === 'imagesToPDF'
+    // Every op takes one buffer except these three, which take a list — same
+    // shape as Go's [][]byte / two-buffer params (MergeParams,
+    // ImagesToPDFParams, AddImageWatermark's pdf+image pair).
+    const multiBuffer = op === 'merge' || op === 'imagesToPDF' || op === 'addImageWatermark'
     const arg = multiBuffer ? views : views[0]
 
     const result = await api[op](id, JSON.stringify(params ?? {}), arg)

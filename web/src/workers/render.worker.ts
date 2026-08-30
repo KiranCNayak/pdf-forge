@@ -68,10 +68,61 @@ function requireDoc(docId: string): LoadedDoc {
   return doc
 }
 
+interface CanvasAndContext {
+  canvas: OffscreenCanvas | null
+  context: OffscreenCanvasRenderingContext2D | null
+}
+
+// pdf.js's own DOMCanvasFactory (its default `CanvasFactory`) calls
+// `document.createElement('canvas')` — fine on the main thread, but `document`
+// is undefined inside a Worker. Every render call already builds its own
+// OffscreenCanvas explicitly (see opRenderPage below), so this never came up
+// until a page needed a SECOND, internal canvas of pdf.js's own: certain
+// small images get resampled by `_scaleImage` via a temporary canvas pdf.js
+// creates for itself mid-render, entirely inside its own paint path — no
+// caller-supplied canvas involved at all. That temporary canvas hit the same
+// `document.createElement` call and threw `Cannot read properties of
+// undefined (reading 'createElement')`, confirmed directly by instrumenting
+// this file's own catch block against a real signature-watermarked PDF (an
+// XObject image, not literally inline — pdf.js's own operator-list builder
+// inlines small XObject images as an optimization, which is what actually
+// routes them through this path) before this fix — not assumed from reading
+// pdf.js's source alone. `getDocument()` accepts a pluggable `CanvasFactory`
+// exactly for non-DOM environments — this app's own render calls never use
+// it (they already own their canvas), but pdf.js's internal ones now do too.
+// Node.js's own bundled `NodeCanvasFactory` is the same pattern, swapping in
+// whatever canvas implementation the environment actually has.
+class OffscreenCanvasFactory {
+  create(width: number, height: number): CanvasAndContext {
+    if (width <= 0 || height <= 0) throw new Error('Invalid canvas size')
+    const canvas = new OffscreenCanvas(width, height)
+    return { canvas, context: canvas.getContext('2d') }
+  }
+
+  reset(canvasAndContext: CanvasAndContext, width: number, height: number) {
+    if (!canvasAndContext.canvas) throw new Error('Canvas is not specified')
+    if (width <= 0 || height <= 0) throw new Error('Invalid canvas size')
+    canvasAndContext.canvas.width = width
+    canvasAndContext.canvas.height = height
+  }
+
+  destroy(canvasAndContext: CanvasAndContext) {
+    if (!canvasAndContext.canvas) throw new Error('Canvas is not specified')
+    canvasAndContext.canvas.width = 0
+    canvasAndContext.canvas.height = 0
+    canvasAndContext.canvas = null
+    canvasAndContext.context = null
+  }
+}
+
 async function opOpen(bytes: Uint8Array, params: { password?: string }) {
   // pdf.js takes ownership of this buffer; it must not be a view into a
   // transferred ArrayBuffer that anything else still references.
-  const task = pdfjsLib.getDocument({ data: bytes, password: params.password })
+  const task = pdfjsLib.getDocument({
+    data: bytes,
+    password: params.password,
+    CanvasFactory: OffscreenCanvasFactory,
+  })
   const doc = await task.promise
   const id = `doc-${++nextDocId}`
   docs.set(id, doc)
