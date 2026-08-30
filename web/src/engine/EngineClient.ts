@@ -196,13 +196,19 @@ export class EngineClient {
 
   /**
    * Combines images (JPEG/PNG/TIFF/WebP) into one PDF, one page per image, in
-   * the order given. `pageSize: 'fit'` sizes each page to match its own
-   * image exactly; `'A4'`/`'Letter'` use a shared page size and `orientation`.
-   * See docs/tools/images-to-pdf.md.
+   * the order given. `pageSize: 'fit'` sizes each page to the image's own
+   * PIXEL dimensions treated as points (see images-to-pdf.md); `'A4'`/
+   * `'Letter'` use a shared page size and `orientation`; `'exact'` sizes
+   * every page to `width`/`height` in POINTS regardless of the image's own
+   * pixel size — for a caller (Redact) that already knows the true physical
+   * page size because it rendered the image itself. See
+   * docs/tools/{images-to-pdf,redact}.md.
    */
   imagesToPDF(
     images: ArrayBuffer[],
-    opts: { pageSize: 'A4' | 'Letter' | 'fit'; orientation?: 'portrait' | 'landscape' },
+    opts:
+      | { pageSize: 'A4' | 'Letter' | 'fit'; orientation?: 'portrait' | 'landscape' }
+      | { pageSize: 'exact'; width: number; height: number },
     onProgress?: ProgressFn,
   ) {
     return this.#call<Uint8Array>('imagesToPDF', opts, images, onProgress)

@@ -12,14 +12,24 @@ import (
 
 // ImagesToPDFParams configures ImagesToPDF. See docs/tools/images-to-pdf.md.
 type ImagesToPDFParams struct {
-	// "A4" | "Letter" | "fit". "fit" sizes each page to match its own image
-	// exactly — no scaling, no distortion, no shared page size across a
-	// mixed batch.
+	// "A4" | "Letter" | "fit" | "exact". "fit" sizes each page to match its
+	// own image exactly in PIXEL units treated as points — no scaling, no
+	// distortion, no shared page size across a mixed batch, but NOT
+	// physically accurate if the image came from rendering a real page at a
+	// given DPI (see "exact" below, which is). "exact" sizes the page to
+	// Width/Height in POINTS regardless of the image's own pixel dimensions
+	// — for a caller (Redact) that already knows the true physical page size
+	// and is handing over a raster of it. See docs/tools/redact.md.
 	PageSize string `json:"pageSize"`
-	// "portrait" | "landscape". Ignored when PageSize is "fit" (the image's
-	// own orientation IS the page's orientation there). No "auto" in V1 —
-	// see the doc comment on Import below for why.
+	// "portrait" | "landscape". Ignored when PageSize is "fit" or "exact"
+	// (the image's own orientation IS the page's orientation there). No
+	// "auto" in V1 — see the doc comment on Import below for why.
 	Orientation string `json:"orientation"`
+	// Points. Only used when PageSize is "exact"; applied to every image in
+	// the batch (same shared-config limitation as A4/Letter — see the doc
+	// comment on Import below).
+	Width  float64 `json:"width,omitempty"`
+	Height float64 `json:"height,omitempty"`
 }
 
 // ImagesToPDF combines JPEG/PNG/TIFF/WebP images into one PDF, one image per
@@ -78,6 +88,18 @@ func ImagesToPDF(images [][]byte, p ImagesToPDFParams, prog Progress) ([]byte, e
 		}
 		imp.PageDim = &dim
 		imp.PageSize = p.PageSize
+		imp.Pos = types.Center
+		imp.Scale = 1.0
+	case "exact":
+		if p.Width <= 0 || p.Height <= 0 {
+			return nil, bridge.Errf(bridge.CodeInvalid, "exact page size requires positive width and height, got %gx%g", p.Width, p.Height)
+		}
+		// Deliberately leave imp.PageSize ("") unset — nothing in the import
+		// path reads that string (unlike model.Resize.EnforceOrientation,
+		// which docs/tools/crop-resize.md already documents getting bitten
+		// by exactly this kind of "set the string too" requirement).
+		// importImagePDFBytes only ever reads PageDim/Pos/Scale.
+		imp.PageDim = &types.Dim{Width: p.Width, Height: p.Height}
 		imp.Pos = types.Center
 		imp.Scale = 1.0
 	default:
