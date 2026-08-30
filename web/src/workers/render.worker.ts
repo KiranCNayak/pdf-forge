@@ -32,9 +32,18 @@ const docs = new Map<string, LoadedDoc>()
 let nextDocId = 0
 
 function classifyError(err: unknown): { code: RenderErrorCode; message: string; userMessage: string } {
-  const e = err as { name?: string; message?: string; code?: RenderErrorCode }
-  if (e?.code) {
-    return { code: e.code, message: e.message ?? String(err), userMessage: e.message ?? 'Something went wrong.' }
+  const e = err as { name?: string; message?: string; code?: unknown }
+  // Only OUR own throws carry a `code` — always an `ERR_`-prefixed string,
+  // attached via Object.assign below. pdf.js's PasswordException also has a
+  // `code` (a NUMBER: PasswordResponses.NEED_PASSWORD === 1), so a bare
+  // truthiness check here swallowed every encrypted document before the
+  // `name === 'PasswordException'` branch could see it — the whole
+  // render-worker password flow (Redact, PdfToImage, PdfToZip, ExtractText,
+  // OrganizePages) surfaced "No password given" as a dead-end error instead
+  // of prompting to unlock. Match on the shape we actually emit.
+  if (typeof e?.code === 'string' && e.code.startsWith('ERR_')) {
+    const code = e.code as RenderErrorCode
+    return { code, message: e.message ?? String(err), userMessage: e.message ?? 'Something went wrong.' }
   }
   if (e?.name === 'PasswordException') {
     // pdf.js fires this with NEED_PASSWORD first, then INCORRECT_PASSWORD if

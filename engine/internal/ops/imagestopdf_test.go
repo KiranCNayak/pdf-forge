@@ -32,6 +32,61 @@ func TestImagesToPDFFitSizesPageToImage(t *testing.T) {
 	}
 }
 
+func TestImagesToPDFExactSizesPageToGivenPoints(t *testing.T) {
+	// A page rendered at, say, 200 DPI has a pixel size wildly different from
+	// its point size (2550x3300 vs 612x792 for US Letter) — "exact" must use
+	// the given Width/Height verbatim and ignore the image's own pixel
+	// dimensions entirely, unlike "fit". Same aspect ratio here (both 3:4)
+	// so the fill-exactly math (Scale: 1.0, Center) doesn't need cropping.
+	img := pngBytes(t, 1700, 2200, color.RGBA{200, 40, 40, 255})
+
+	out, err := ImagesToPDF([][]byte{img}, ImagesToPDFParams{PageSize: "exact", Width: 612, Height: 792}, nil)
+	if err != nil {
+		t.Fatalf("images to pdf: %v", err)
+	}
+	dims, err := api.PageDims(bytes.NewReader(out), conf())
+	if err != nil {
+		t.Fatalf("page dims: %v", err)
+	}
+	if got := dims[0]; got.Width != 612 || got.Height != 792 {
+		t.Fatalf("expected page 612x792pt, got %.0fx%.0f", got.Width, got.Height)
+	}
+}
+
+func TestImagesToPDFExactAppliesToEveryImageInBatch(t *testing.T) {
+	a := pngBytes(t, 850, 1100, color.RGBA{200, 40, 40, 255})
+	b := pngBytes(t, 850, 1100, color.RGBA{40, 160, 90, 255})
+
+	out, err := ImagesToPDF([][]byte{a, b}, ImagesToPDFParams{PageSize: "exact", Width: 612, Height: 792}, nil)
+	if err != nil {
+		t.Fatalf("images to pdf: %v", err)
+	}
+	dims, err := api.PageDims(bytes.NewReader(out), conf())
+	if err != nil {
+		t.Fatalf("page dims: %v", err)
+	}
+	for i, d := range dims {
+		if d.Width != 612 || d.Height != 792 {
+			t.Fatalf("page %d: expected 612x792pt, got %.0fx%.0f", i+1, d.Width, d.Height)
+		}
+	}
+}
+
+func TestImagesToPDFExactRejectsNonPositiveDimensions(t *testing.T) {
+	img := pngBytes(t, 100, 100, color.RGBA{200, 40, 40, 255})
+
+	for _, p := range []ImagesToPDFParams{
+		{PageSize: "exact", Width: 0, Height: 792},
+		{PageSize: "exact", Width: 612, Height: 0},
+		{PageSize: "exact", Width: -612, Height: 792},
+		{PageSize: "exact", Width: 612, Height: -792},
+	} {
+		if _, err := ImagesToPDF([][]byte{img}, p, nil); bridge.Classify(err) != bridge.CodeInvalid {
+			t.Fatalf("params %+v: expected ERR_INVALID_PARAMS, got %v", p, err)
+		}
+	}
+}
+
 func TestImagesToPDFMultiplePages(t *testing.T) {
 	a := pngBytes(t, 100, 100, color.RGBA{200, 40, 40, 255})
 	b := pngBytes(t, 100, 100, color.RGBA{40, 160, 90, 255})

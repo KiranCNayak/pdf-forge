@@ -8,14 +8,22 @@ says how far it actually got.
 to find the current edge:** Phases 1–3 (all 12 V1 tools + P2P Share, including its
 `BroadcastChannel` shortcut and manual-paste fallback) are done and shipped. Phase 4 has
 started — every tool that was a thin UI layer over an existing pdfcpu API is now shipped
-(Add/Remove Watermark, Page Numbers, Headers & Footers, Crop & Resize; see `## What
-works today` below for the tools table and `## Next task`'s tail end for the detail on
-each). **Nothing is in flight right now** — the next Phase 4 tool has not been chosen.
-The 24 remaining Phase 4 tools (`docs/TOOL_CATALOG.md`'s Phase 4 section) all need real
-design work rather than a UI layer over a one-call API — Flatten, Fill Form, Sign,
-Redact, Edit PDF Text, Invert Colours, Repair, Compare, Privacy Scanner, Fingerprint, and
-the whole office-format-conversion block. Ask the user which one before starting; don't
-assume the order in the catalog is a priority order, it isn't.
+(Add/Remove Watermark, Page Numbers, Headers & Footers, Crop & Resize), and so is
+**Redact** (`web/src/tools/Redact`, `docs/tools/redact.md`) — the first Phase 4 tool
+needing real design work, built as full-page rasterization rather than the catalog's
+originally-specced content-stream text removal (pdfcpu has no primitives for that; see
+`docs/tools/redact.md`'s "A deliberate deviation" section and `## Next task`'s Redact
+entry for the full reasoning). **A red-team review of Redact has now run** (separate
+agent, Opus model, tasked with trying to break the redaction guarantee) and found two
+real bugs, both fixed — one of them the exact "reports success but the file doesn't
+actually reflect what's on screen" failure mode this tool exists to prevent. See `##
+Next task`'s Redact entries for the detail; Redact is considered closed out. Nothing is
+in flight — the next Phase 4 tool has not been chosen. The 23 remaining Phase 4 tools
+(`docs/TOOL_CATALOG.md`'s Phase 4 section) all need real design work rather than a UI
+layer over a one-call API — Flatten, Fill Form, Sign, Edit PDF Text, Invert Colours,
+Repair, Compare, Privacy Scanner, Fingerprint, and the whole office-format-conversion
+block. Ask the user which one before starting; don't assume the order in the catalog is a
+priority order, it isn't.
 
 ---
 
@@ -50,12 +58,13 @@ Phase 0 is complete. The engine runs end-to-end in a browser.
 | `web/src/tools/PageNumbers`                                        | Pure UI layer over `addWatermark` — **zero new engine code**. pdfcpu substitutes `%p{offset}`/`%P` tokens per page INSIDE `AddWatermarks` itself, so a text string like `"Page %p0 of %P"` already produces the right number on every page with the op that already existed. `TestAddWatermarkSupportsPageNumberTokens` regression-tests this specifically. Format preset, "start numbering at" field, 6-point position preset, same style controls and selection field as `AddWatermark`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | `web/src/tools/HeadersFooters`                                     | Same reasoning as `PageNumbers`, but a header and a footer are two independent placements and `AddWatermarks` only places one per call — this tool makes up to two sequential `engine.addWatermark` calls, chaining the first call's output bytes into the second's input (skips a call entirely for an empty field, never watermarks an empty string). Watermarking preserves an input's existing encryption (verified directly), which is what lets both calls reuse the same password with no second prompt                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | `web/src/tools/CropResize`                                         | One route, two engine calls behind a mode toggle — Crop trims the visible area (`engine.crop`, sets `/CropBox`, leaves content alone), Resize scales the whole page (`engine.resize`, scale factor / named page size incl. landscape / exact point dimensions). Same style controls and selection field (including `even`/`odd`) as every other page op here                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `web/src/tools/Redact`                                             | Phase 4's first tool needing real design, and a deliberate deviation from `docs/TOOL_CATALOG.md`'s own spec (see `docs/tools/redact.md`'s "A deliberate deviation" section) — full-page rasterization, not surgical content-stream text removal, since pdfcpu has no primitives for the latter. Interactive canvas box editor over the render worker's per-page preview (fractional `[0,1]` box coordinates, resolution-independent of preview vs. output DPI); Apply re-renders every page, composites boxes onto the decoded pixels, and rebuilds the whole document via a new `pageSize: "exact"` mode on the `imagesToPDF` Go op (points computed from the render worker's own `effectiveDpi`, not `"fit"`'s pixel-dimensions-as-points behaviour). Caught a real bug during e2e test-writing: `onPointerUp` called `setBoxesByPage` as a side effect inside `setDraft`'s functional updater, which React StrictMode double-invokes in dev specifically to catch this — boxes were committing twice per drag. `web/e2e/redact.spec.ts` reads the raw output PDF bytes directly to confirm a known secret string is absent anywhere in the file (not just visually covered), against a real fixture with two vector-text stamps (`web/e2e/fixtures/redact-secret.pdf`, `cmd/genfixtures -redact`, content confirmed via `qpdf --qdf`) — plus a pixel-sampling check via the app's own PdfToImage tool that the box is black and untouched page area isn't. A later adversarial-review pass (Opus model, tasked with trying to break the redaction guarantee) found and fixed two more real bugs — the box editor staying live during an in-flight run, and an encrypted-PDF password-prompt regression shared by every render-worker tool — plus added 7 more Playwright tests (`web/e2e/redact-adversarial.spec.ts`) covering rotation, multi-page box-to-page mapping, the mixed-page-size fallback branch, and cancel — see this file's own `## Next task` entry and `docs/tools/redact.md`'s "Adversarial review" section for the detail                                                                                                                                                                                                                                                                                                                                                 |
 | `web/src/dev/smoke.ts`                                             | 16-check browser smoke test, including add/remove watermark (including the no-watermark no-op path) and compress (preset round trip + unreachable target reports `reachedTarget: false`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | `web/e2e/`                                                         | Playwright end-to-end tests: real Chromium, real Vite dev server, real `engine.wasm` (plus a real `signaling/` server for `p2p-share.spec.ts` — `playwright.config.ts`'s second `webServer` entry) — the layer above the browser smoke test, covering UI wiring (file pickers, staged-list reorder, option forms, downloads) that no unit test touches. 16 specs across every tool: `merge`, `split`, `extract-pages`, `rotate`, `compress`, `images-to-pdf`, `pdf-to-image`, `extract-text` (scanned-detection plus a real-text fixture, `web/e2e/fixtures/text-page.pdf`), `pdf-to-zip` (multi-page ZIP + single-page shortcut), `organize-pages` (rotate/duplicate/undo/redo/apply via button clicks — drag-reorder isn't exercised, see the spec's own header), `p2p-share` (two real browser contexts against one signaling server, unencrypted + wrong-password paths), an `encrypt` → `remove-password` round trip across two tools, and site-wide navigation. Caught two real bugs on its very first run — see "Things that will bite you" below. `npm run test:e2e`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | `signaling/`                                                       | WebSocket signaling server (Go module, `cmd/signaling`): room create/join/relay for SDP+ICE via `internal/hub`, per-IP rate limiting via `internal/wsserver`, Crockford-base32 room codes via `internal/roomcode`. 27 Go tests pass, gofmt clean, vet clean. Now consumed by `web/src/tools/P2PShare`. See `signaling/README.md`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 
-108 Go tests pass. TypeScript is clean. Production build works. 41 Playwright e2e tests
-across 18 spec files pass (`web/e2e/`, `npm run test:e2e`) — every tool has at least one.
+111 Go tests pass. TypeScript is clean. Production build works. 53 Playwright e2e tests
+across 20 spec files pass (`web/e2e/`, `npm run test:e2e`) — every tool has at least one.
 `__smoke()` now has 12
 checks including compress, but has not actually been run in a browser since the compress
 checks were added — the Chrome extension wasn't available in the environment that wrote
@@ -590,6 +599,111 @@ left in Phase 4 (24 tools) is genuinely harder — Flatten, Fill Form, Sign, Red
 PDF Text, Invert Colours, Repair, Compare, Privacy Scanner, Fingerprint, and the entire
 office-format-conversion block — each needs real design work, not a UI layer over a
 one-call pdfcpu API.
+
+**Redact shipped next, by direct user request rather than working down the catalog in
+order** (`web/src/tools/Redact`, `docs/tools/redact.md`) — the first Phase 4 tool that
+needed real design work rather than a thin wrapper. It's also the first deliberate
+deviation from `docs/TOOL_CATALOG.md`'s own spec for a tool: the catalog calls for
+surgical content-stream text removal ("Engine: Go"), which pdfcpu has no primitives for
+at all (no content-stream editor, no per-glyph bounding boxes, no image-region clipping)
+— building that from scratch was judged too failure-prone to ship with confidence in one
+pass, exactly the kind of half-correct redaction that's worse than an honest limitation.
+Shipped instead: full-page rasterization (Hybrid, not Go) — every page, not just boxed
+ones, is rendered in the worker, boxes are composited onto the decoded pixels, and the
+whole document is rebuilt from images via a new `pageSize: "exact"` mode added to the
+existing `imagesToPDF` op (`engine/internal/ops/imagestopdf.go`). This is strictly
+stronger than the catalog's own requirement (nothing survives anywhere, not just the
+boxed text) at a real, UI-stated cost: the whole document loses text search/selection,
+not just the redacted area. `docs/tools/redact.md`'s "A deliberate deviation" section has
+the full reasoning; `docs/TOOL_CATALOG.md`'s own Redact row was updated to match rather
+than left stale.
+
+The property that actually matters here — "the secret string cannot survive anywhere in
+the output file" — isn't Go-testable, since Go in this pipeline never sees the original
+vector PDF, only already-rasterized images handed to it by the browser. The real proof is
+`web/e2e/redact.spec.ts`, against a real fixture with two known vector-text strings
+(`web/e2e/fixtures/redact-secret.pdf`, generated by a new `-redact` flag on
+`cmd/genfixtures`, content confirmed via `qpdf --qdf` rather than assumed from the
+generator code): it reads the **raw output PDF bytes directly** and confirms the secret
+string is absent anywhere in the file, then independently re-renders the output through
+the app's own PdfToImage tool and samples pixels to confirm the box is black and
+untouched page area isn't. Building this test caught a real bug before it shipped: boxes
+were being committed twice per drag, because `onPointerUp` called `setBoxesByPage` as a
+side effect _inside_ `setDraft`'s functional updater — React StrictMode double-invokes
+updater functions in dev specifically to catch this class of impurity, and the e2e test's
+box-count assertion caught it immediately. Fixed by reading `draft` directly in the plain
+event handler instead of through the updater. A second, unrelated CSS bug surfaced during
+the same test-writing pass: the redaction canvas had no `max-height`, only `max-width`, so
+a portrait page at the preview DPI could overflow the viewport on an ordinary laptop
+screen, not just in a Playwright viewport — fixed with `maxHeight: '70vh'`.
+
+**Two hardening decisions were made proactively, before any adversarial review ran** —
+closed as a "close to leaking isn't good enough" call rather than left for a red team to
+surface: every drawn box is now filled outset by a few device pixels beyond its exact
+fractional rectangle (a box boundary essentially never lands on an exact pixel line, and
+`fillRect`'s anti-aliasing plus JPEG's 8×8 DCT blocks could otherwise spread a faint trace
+of the true edge into an adjacent block — shared `fillBoxes` helper, used by both the live
+preview and the final compositing so what's shown while dragging matches what ships), and
+the default output format flipped from JPEG to PNG (lossless — the one tool in the app
+where that differs from every other render-worker tool's JPEG default).
+
+**The adversarial review then ran** (separate agent instance, Opus model, tasked
+specifically with trying to break the redaction guarantee rather than a general code
+review) and found two real bugs, both fixed, plus closed the one coverage gap the doc had
+flagged:
+
+1. **The box editor stayed live while a redaction run was in flight** — the exact
+   "reports success but the shipped file doesn't reflect what's on screen" failure mode
+   this tool exists to prevent, not a cosmetic bug. `apply()` freezes the box set as a JS
+   closure at the moment Redact is clicked (now named explicitly as a snapshot rather than
+   left implicit), but nothing stopped the user from drawing, deleting, or clearing boxes
+   on the canvas _while a multi-page run was still running_ — the visible count/canvas
+   updated immediately from a separate render, while the running `apply()` kept using its
+   frozen closure. A user could watch a new box appear, see "Redacted" succeed, and
+   download a file that never contained it. Fixed by disabling every box-editing control
+   (canvas pointer handlers, "Redact Entire Page", "Clear This Page", "Clear All", each
+   box's remove button) for the duration of a run.
+2. **Encrypted PDFs silently broke the password prompt in every render-worker tool, not
+   just Redact** — `render.worker.ts`'s error classifier used a bare `if (e?.code)` check
+   to detect this codebase's own throws before falling through to pdf.js's
+   `PasswordException` handling, but pdf.js's own exception ALSO carries a `code` (a
+   number, `PasswordResponses.NEED_PASSWORD`), so it matched first and every encrypted
+   document was misclassified as a generic internal error — the password prompt never
+   opened, for Redact, PdfToImage, PdfToZip, ExtractText, and OrganizePages alike. Fixed
+   by checking the actual shape this codebase's own throws use (a string starting
+   `"ERR_"`) instead of bare truthiness. Redact's own adversarial fixture just happened to
+   be what surfaced a bug that had nothing to do with Redact specifically.
+3. The mixed-page-size fallback branch (per-page `imagesToPDF` + `merge`) — previously
+   flagged as having zero coverage — is now exercised directly by a fixture with two
+   different physical page sizes (Letter + A5), confirming each output page keeps its own
+   aspect ratio through the merge. No bug found; the gap was coverage, not correctness.
+
+Specifically tried and did NOT find a bug: a `/Rotate 90` source page (box drawn against
+the rotated preview correctly lands on the same content in the separately re-rendered
+output), page→box mapping and order across a 5-page document with boxes on non-contiguous
+pages, and cancelling a run never leaving a downloadable result behind.
+
+`web/e2e/redact-adversarial.spec.ts` (7 tests) and four fixtures
+(`web/e2e/fixtures/adv-{rot90,multi5,encrypted,mixed}.pdf`) are the permanent result,
+generated by a new `-adversarial` flag folded into `cmd/genfixtures` — the review agent
+first wrote these via its own separate, explicitly-"temporary" `cmd/advfixtures` binary,
+merged into the permanent generator afterward once its fixtures became permanent,
+depended-on infrastructure rather than scratch work. `docs/tools/redact.md`'s
+"Adversarial review" section has the full detail per bug.
+
+One operational note worth recording: the first attempt at this review used
+`isolation: "worktree"` for the reviewing agent, which checks out a fresh git worktree
+from committed history — but all of this Redact work was (and, as of this writing, still
+is) uncommitted in the working directory, so that worktree contained none of it, and the
+agent correctly reported finding nothing to review. Re-run directly against the working
+directory (no isolation) to fix. Worth remembering for any future review/audit agent
+launched against uncommitted work: worktree isolation is the wrong tool unless the work
+under review is actually committed first.
+
+Verified after the fixes: `gofmt`/`vet`/`go test` clean (111 Go tests, unchanged — no new
+Go logic, only a fixture-generator refactor), `tsc --noEmit` clean, production build
+clean, and the full Playwright suite green — 53 tests across 20 spec files (12 of them
+Redact's own: 5 in `redact.spec.ts`, 7 in `redact-adversarial.spec.ts`).
 
 **This work parallelises.** `docs/PARALLEL.md` defines four non-overlapping lanes —
 engine ops, tool UIs, signaling server, render pipeline — and the worktree flow for
