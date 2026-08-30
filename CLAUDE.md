@@ -114,6 +114,7 @@ prevents.
 ## Scope
 
 V1 is 12 tools (Phases 1–2): core page ops, encrypt/remove-password, compress, and
-render/convert. The full in-scope target is 43. AI tools, local-ML tools (OCR/TTS) and
-India-specific business tools are **out of scope** with reasons recorded in
-`docs/TOOL_CATALOG.md` §Deferred.
+render/convert. The full in-scope target is 44 (`docs/TOOL_CATALOG.md`'s own count,
+after Remove Watermark was added post-hoc — see that doc's Counts section). AI tools,
+local-ML tools (OCR/TTS) and India-specific business tools are **out of scope** with
+reasons recorded in `docs/TOOL_CATALOG.md` §Deferred.

@@ -6,11 +6,13 @@ Every operation runs on your own machine — merge, split, compress, encrypt —
 account, no watermark and no server holding your documents. Works offline after the first
 load.
 
-> **Status: Phases 0–2 built, nothing deployed yet.** The engine runs end-to-end in a
-> browser with nine operations including compress; tool pages exist for merge, split,
-> extract pages, rotate, encrypt and remove-password; the P2P signaling server is built
-> and tested. There is no live URL — see "Running it locally" below, and
-> [docs/STATE.md](docs/STATE.md) for exactly what's proven vs. still a guess.
+> **Status: Phases 0–3 built, plus the easy half of Phase 4, nothing deployed yet.** The
+> engine runs end-to-end in a browser with 16 operations across 18 tool pages — every
+> V1 tool (merge, split, extract pages, organize, rotate, encrypt, remove password,
+> compress, PDF↔image/ZIP, extract text, images→PDF), P2P file share with a working Go
+> signaling server, and five Phase 4 tools (add/remove watermark, page numbers,
+> headers & footers, crop & resize). There is no live URL — see "Running it locally"
+> below, and [docs/STATE.md](docs/STATE.md) for exactly what's proven vs. still a guess.
 
 ---
 
@@ -25,10 +27,11 @@ That buys three things:
   browser PDF tool — cannot compress and has no real encryption support. Ours does both.
 - **One engine, three targets.** The same `internal/ops` package serves the browser, a
   self-hostable CLI binary, and the benchmark harness.
-- **A reasonable download for what it covers.** The engine is **3.0 MB Brotli'd** with
-  eight operations linked — measured, not estimated. For comparison, the Ghostscript build
-  ihatepdf.cv loads for compression _alone_ is 10.4 MB Brotli. Adding operations is nearly
-  free: going from one to eight cost 0.8 MB, because pdfcpu's fixed cost dominates.
+- **A reasonable download for what it covers.** The engine is **3.25 MB Brotli'd** with
+  16 operations linked — measured, not estimated (see `docs/STATE.md`'s own "Measured,
+  not estimated" table for the up-to-date number). For comparison, the Ghostscript build
+  ihatepdf.cv loads for compression _alone_ is 10.4 MB Brotli. Adding operations is
+  nearly free: going from one to eight cost 0.8 MB, because pdfcpu's fixed cost dominates.
 
 The trade is honest rather than one-sided: on simple page operations, `pdf-lib` does the
 job in a fraction of the bytes. We pay more on the cheap tools and far less on the
@@ -77,9 +80,10 @@ Open the printed `http://localhost:5173` URL. In the browser console, run:
 await __smoke();
 ```
 
-That's the 12-check bridge smoke test (`web/src/dev/smoke.ts`) — it exercises merge,
-split, extract, rotate, encrypt/decrypt and compress through the actual Worker/Wasm
-path, which native Go tests can't reach. All checks should print `PASS`.
+That's the browser smoke test (`web/src/dev/smoke.ts`, `docs/STATE.md` has the current
+check count) — it exercises merge, split, extract, rotate, encrypt/decrypt, compress
+and add/remove watermark through the actual Worker/Wasm path, which native Go tests
+can't reach. All checks should print `PASS`.
 
 Native CLI (same engine code, no browser):
 
@@ -114,29 +118,30 @@ push until CI exists.
 
 ## Documentation
 
-| Doc                                  | Contents                                                                  |
-| ------------------------------------ | ------------------------------------------------------------------------- |
-| [HLD](docs/HLD.md)                   | System architecture, engine boundary, memory model, deployment, roadmap   |
-| [LLD](docs/LLD.md)                   | Go↔JS bridge contract, worker protocol, compress pipeline, build pipeline |
-| [Tool catalog](docs/TOOL_CATALOG.md) | All 56 tools, phased — plus what's deferred and why                       |
-| [Benchmarking](docs/BENCHMARKING.md) | Phase 5 measurement design                                                |
-| [Per-tool plans](docs/tools/)        | Implementation detail for each V1 tool                                    |
-| [STATE](docs/STATE.md)               | What exists today, what is still a guess, what to do next                 |
-| [PARALLEL](docs/PARALLEL.md)         | Working several lanes at once without conflicts                           |
-| [CLAUDE.md](CLAUDE.md)               | Working agreements and hard constraints                                   |
+| Doc                                  | Contents                                                                     |
+| ------------------------------------ | ---------------------------------------------------------------------------- |
+| [HLD](docs/HLD.md)                   | System architecture, engine boundary, memory model, deployment, roadmap      |
+| [LLD](docs/LLD.md)                   | Go↔JS bridge contract, worker protocol, compress pipeline, build pipeline    |
+| [Tool catalog](docs/TOOL_CATALOG.md) | All 56 tools, phased — plus what's deferred and why                          |
+| [Benchmarking](docs/BENCHMARKING.md) | Phase 5 measurement design                                                   |
+| [Per-tool plans](docs/tools/)        | Implementation detail for every shipped tool (18 so far, V1 through Phase 4) |
+| [STATE](docs/STATE.md)               | What exists today, what is still a guess, what to do next                    |
+| [PARALLEL](docs/PARALLEL.md)         | Working several lanes at once without conflicts                              |
+| [CLAUDE.md](CLAUDE.md)               | Working agreements and hard constraints                                      |
 
 ## Roadmap
 
-| Phase | Contents                                                                                  |
-| ----- | ----------------------------------------------------------------------------------------- |
-| 0     | Bridge spike — proves the Go→Wasm path and replaces estimated constants with measurements |
-| 1     | Merge, split, extract pages, rotate, organize · encrypt, remove password                  |
-| 2     | Compress · PDF→JPG, images→PDF, extract text, PDF→ZIP                                     |
-| 3     | P2P file share + Go signaling server                                                      |
-| 4     | Office format conversion (~15 tools)                                                      |
-| 5     | Benchmark harness                                                                         |
+| Phase | Contents                                                                                  | Status                                     |
+| ----- | ----------------------------------------------------------------------------------------- | ------------------------------------------ |
+| 0     | Bridge spike — proves the Go→Wasm path and replaces estimated constants with measurements | Done                                       |
+| 1     | Merge, split, extract pages, rotate, organize · encrypt, remove password                  | Done                                       |
+| 2     | Compress · PDF→JPG, images→PDF, extract text, PDF→ZIP                                     | Done                                       |
+| 3     | P2P file share + Go signaling server                                                      | Done                                       |
+| 4     | Edit/annotate/organize (15 tools) + office format conversion (15 tools)                   | 5 of 30 done — the thin-wrapper ones first |
+| 5     | Benchmark harness                                                                         | Not started                                |
 
-V1 is Phases 1–2: twelve tools. The full in-scope target is 43.
+V1 is Phases 1–2: twelve tools, all shipped. The full in-scope target is 44
+(`docs/TOOL_CATALOG.md`'s Counts section).
 
 ## Stack
 

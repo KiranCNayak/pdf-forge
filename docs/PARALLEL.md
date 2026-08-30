@@ -72,9 +72,11 @@ in the component.
 
 ### Lane C — Signaling server (Go)
 
-**Owns:** `signaling/` — does not exist yet, so this lane starts from an empty
-directory and can run start-to-finish without touching anything else. The most
-parallel-friendly work in the project. Design is in `docs/tools/p2p-share.md` §2.
+**Owns:** `signaling/` — built out (Go WebSocket relay, `docs/tools/p2p-share.md` §2's
+design), consumed by `web/src/tools/P2PShare`. Still the most parallel-friendly lane for
+anything new that needs a server component (e.g. the collaborative whiteboard
+`docs/TOOL_CATALOG.md` mentions as a maybe), since it shares no file with the other three
+lanes.
 
 ### Lane D — Render pipeline (pdf.js)
 
@@ -175,6 +177,11 @@ caught by anything else.
 
 ## Splitting the current work
 
+_This section is kept as a worked example of how a split was actually reasoned about,
+not a live task list — check `docs/STATE.md`'s tl;dr at the top for what's actually next
+before using it. The example below is the ORIGINAL split, from when Phase 1 engine ops
+existed but no UIs did._
+
 Phase 1 engine ops all exist and are tested; the UIs do not. A reasonable four-way split
 from here:
 
@@ -190,3 +197,11 @@ further if the directories are assigned explicitly up front.
 
 `organize-pages` deliberately isn't listed: it needs both Lane B and Lane D, so it
 should wait until D lands rather than being built twice.
+
+**As of the tl;dr's date**, Phases 1–3 and every thin-wrapper Phase 4 tool are done —
+today's equivalent split is across the 24 remaining Phase 4 tools
+(`docs/TOOL_CATALOG.md`'s Phase 4 section), most of which need real per-tool design
+decisions rather than a mechanical UI-over-existing-API pass, so a four-way split makes
+less sense here than picking one tool, writing its `docs/tools/<name>.md` design doc
+first (a real one this time, not a thin-wrapper one), and building it end to end before
+starting the next.
