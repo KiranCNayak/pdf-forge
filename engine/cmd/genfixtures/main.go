@@ -10,6 +10,7 @@
 //	go run ./cmd/genfixtures -out /tmp/big -pages 500
 //	go run ./cmd/genfixtures -out ../web/e2e/fixtures -redact
 //	go run ./cmd/genfixtures -out ../web/e2e/fixtures -adversarial
+//	go run ./cmd/genfixtures -out ../web/e2e/fixtures -flatten-form
 package main
 
 import (
@@ -22,6 +23,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/pdfcpu/pdfcpu/pkg/api"
 	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu/model"
@@ -246,11 +248,56 @@ func buildAdversarialFixtures(dir string) error {
 	return write("adv-mixed.pdf", mixed)
 }
 
+// buildFlattenFixture makes a one-page PDF with a REAL AcroForm text field widget
+// (not a plain text stamp) carrying a known value — the thing Flatten's own design
+// claim rests on: does pdf.js's render worker bake a filled form field's value into
+// the raster by default, or only via a separate interactive DOM annotation layer this
+// app never uses? Confirmed empirically before writing any tool code: rendered this
+// exact fixture through the app's own PdfToImage tool at 300 DPI and read
+// "SECRET-FORM-VAL-9Q8W7E" back out of the resulting PNG by eye, not assumed from
+// pdf.js's own AnnotationMode.ENABLE documentation alone (though that documentation
+// agrees — see docs/tools/flatten.md). `api.Create` takes pdfcpu's own declarative
+// JSON page-description format; a single "textfield" content block is enough to get a
+// real /FT /Tx /Widget annotation with a generated appearance stream, which is what
+// actually needs to survive rasterization.
+func buildFlattenFixture(path string) error {
+	spec := `{
+		"paper": "A4P",
+		"fonts": { "myFont": { "name": "Helvetica", "size": 12 } },
+		"pages": {
+			"1": {
+				"content": {
+					"textfield": [
+						{
+							"id": "field1",
+							"value": "SECRET-FORM-VAL-9Q8W7E",
+							"pos": [100, 700],
+							"width": 250,
+							"font": { "name": "$myFont" }
+						}
+					]
+				}
+			}
+		}
+	}`
+
+	var out bytes.Buffer
+	if err := api.Create(nil, strings.NewReader(spec), &out, conf()); err != nil {
+		return fmt.Errorf("create form fixture: %w", err)
+	}
+	if err := os.WriteFile(path, out.Bytes(), 0o644); err != nil {
+		return err
+	}
+	fmt.Printf("%-40s %d bytes\n", path, out.Len())
+	return nil
+}
+
 func main() {
 	out := flag.String("out", ".", "output directory")
 	pages := flag.Int("pages", 0, "if set, generate a single N-page fixture instead of the standard set")
 	redact := flag.Bool("redact", false, "generate redact-secret.pdf instead of the standard set")
 	adversarial := flag.Bool("adversarial", false, "generate the four adv-*.pdf fixtures redact-adversarial.spec.ts needs")
+	flattenForm := flag.Bool("flatten-form", false, "generate form-fixture.pdf, a real AcroForm text field, for flatten.spec.ts")
 	flag.Parse()
 
 	if err := os.MkdirAll(*out, 0o755); err != nil {
@@ -264,6 +311,8 @@ func main() {
 		err = buildRedactFixture(filepath.Join(*out, "redact-secret.pdf"))
 	case *adversarial:
 		err = buildAdversarialFixtures(*out)
+	case *flattenForm:
+		err = buildFlattenFixture(filepath.Join(*out, "form-fixture.pdf"))
 	case *pages > 0:
 		err = build(filepath.Join(*out, fmt.Sprintf("pages-%d.pdf", *pages)), *pages, 600, 800)
 	default:
